@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<!-- saved from url=(0125)https://girorganic.com/web-pixels@c8540278we853e1abpb62b2c4amde256306/custom/web-pixel-133890278@8/sandbox/modern/pages/about -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>From Farm To Organic &amp; Healty Life - Gir Organic – GirOrganic</title>
+    <script type="text/javascript" async="" src="./js"></script><script type="text/javascript" async="" src="./js(1)"></script><script type="text/javascript" async="" src="./js(2)"></script><script type="text/javascript" async="" src="./clientParamBuilder.bundle.js.download"></script><script src="./335630437514994" async=""></script><script async="" src="./fbevents.js.download"></script><script async="" src="./gtm.js.download"></script><script src="./sc8540278we853e1abpb62b2c4amde256306m.js.download"></script>
+
+    <script type="text/javascript">
+  (function(shopify) {shopify.extend('WebPixel::Render', function(api) {
+var analytics=api.analytics,browser=api.browser,init=api.init;
+window.dataLayer = window.dataLayer || [];
+window.dataLayer.push({
+  event: "context_data",
+  page_location: init.context.document.location.href,
+  page_referrer: init.context.document.referrer,
+  page_title: init.context.document.title,
+  page_path: init.context.document.location.pathname,
+  search_param: init.context.document.location.search,
+  hash_param: init.context.document.location.hash,
+  language: init.context.navigator.language,
+  screen_width: init.context.window.outerWidth,
+  screen_height: init.context.window.outerHeight,
+  user_agent: init.context.navigator.userAgent,
+});
+//--------------------------Put You GTM Code below-----------------------------------
+(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TNXNZBVJ');
+//-----------------------------------------------------------------------------------
+//Mention the ads platform you want to track for in the below array.Example - ['Facebook','Snapchat'...]
+var trackingPlatform = ["Facebook", "Pinterest", "Snapchat"];
+//-----------------------------------------------------------------------------------
+var page_view_fired = false;
+var checkout_contact_info_submitted_fired = false;
+var checkout_address_info_submitted_fired = false;
+var checkout_shipping_info_submitted_fired = false;
+
+var customerData = {};
+if (init.data.customer !== null) {if (init.data.customer.id !== undefined) { window.dataLayer.push({event: "loggedIn_userData",loggedInUser_id:init.data.customer.id,loggedInUser_email:init.data.customer.email,loggedInUser_phone: init.data.customer.phone,
+loggedInUser_firstName: init.data.customer.firstName,loggedInUser_lastName: init.data.customer.lastName,loggedInUser_ordersCount:init.data.customer.ordersCount,});} else {window.dataLayer.push({event: "loggedIn_userData",});}
+} else {window.dataLayer.push({event: "loggedIn_userData", });}
+
+function contextData() {
+  let conData;
+  let unmodifiedData;
+  let modifiedData;
+  for (let i = 0; i < window.dataLayer.length; i++) {
+    if (window.dataLayer[i].event === "context_data") {
+      unmodifiedData = window.dataLayer[i];
+      modifiedData = JSON.parse(JSON.stringify(unmodifiedData));
+      delete modifiedData["gtm.uniqueEventId"];
+      delete modifiedData.event;
+      conData = modifiedData;
+      break;
+    }
+  }
+  return conData;
+}
+analytics.subscribe("page_viewed", (event) => {
+  if (!page_view_fired) {
+    var pageViewContextData = contextData() || {};
+    var pageViewdata = {
+      event: "page_viewed",
+      client_id: event.clientId,
+      event_time: event.timestamp,
+      event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+      event_source: "custom_pixel",
+    };
+    window.dataLayer.push({ ...pageViewdata, ...pageViewContextData });
+  }
+  page_view_fired = true;
+});
+
+analytics.subscribe("product_viewed", (event) => {
+  var viewItemContextData = contextData() || {};
+  var viewObj = {
+    event: "view_item",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    product_variant_id: [event.data.productVariant.id],
+    product_sku: [event.data.productVariant.sku],
+    ecommerce: {
+      currency: event.data.productVariant.price.currencyCode,
+      value: event.data.productVariant.price.amount,
+      items: [
+        {
+          item_id: event.data.productVariant.product.id,
+          item_name: event.data.productVariant.product.title,
+          item_brand: event.data.productVariant.product.vendor,
+          item_category: event.data.productVariant.product.type,
+          item_variant: event.data.productVariant.title ? event.data.productVariant.title : "",
+          price: event.data.productVariant.price.amount,
+          quantity: 1,
+        },
+      ],
+    },
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    viewObj.pt_browser_side = {
+      value: event.data.productVariant.price.amount,
+      order_quantity: 1,
+      currency: event.data.productVariant.price.currencyCode,
+      line_items: [
+        {
+          product_name: event.data.productVariant.product.title,
+          product_id: event.data.productVariant.product.id,
+          product_variant_id: event.data.productVariant.id,
+          product_category: event.data.productVariant.product.type,
+          product_brand: event.data.productVariant.product.vendor ? event.data.productVariant.product.vendor : "",
+          product_price: event.data.productVariant.price.amount,
+          product_quantity: 1,
+        },
+      ],
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    viewObj.snap_browser_side = {
+      price: event.data.productVariant.price.amount,
+      currency: event.data.productVariant.price.currencyCode,
+      item_ids: [event.data.productVariant.product.id],
+      item_category: event.data.productVariant.product.type,
+      brands: [event.data.productVariant.product.vendor].includes("") ? "" : [event.data.productVariant.product.vendor],
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    viewObj.fb_browser_side = {
+      content_ids: [event.data.productVariant.product.id],
+      content_category: event.data.productVariant.product.type,
+      content_name: event.data.productVariant.product.title,
+      content_type: "product",
+      contents: [
+        {
+          id: event.data.productVariant.product.id,
+          quantity: 1,
+          item_price: event.data.productVariant.price.amount,
+        },
+      ],
+      currency: event.data.productVariant.price.currencyCode,
+      value: event.data.productVariant.price.amount,
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...viewObj, ...viewItemContextData });
+});
+
+analytics.subscribe("product_added_to_cart", (event) => {
+  var addToCartContextData = contextData() || {};
+  var addToCartObj = {
+    event: "add_to_cart",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    product_variant_id: [event.data.cartLine.merchandise.id],
+    product_sku: [event.data.cartLine.merchandise.sku],
+    ecommerce: {
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      value: event.data.cartLine.cost.totalAmount.amount,
+      items: [
+        {
+          item_id: event.data.cartLine.merchandise.product.id,
+          item_name: event.data.cartLine.merchandise.product.title,
+          item_brand: event.data.cartLine.merchandise.product.vendor,
+          item_category: event.data.cartLine.merchandise.product.type,
+          item_variant: event.data.cartLine.merchandise.title ? event.data.cartLine.merchandise.title : "",
+          price: event.data.cartLine.merchandise.price.amount,
+          quantity: event.data.cartLine.quantity,
+        },
+      ],
+    },
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    addToCartObj.fb_browser_side = {
+      content_ids: [event.data.cartLine.merchandise.product.id],
+      content_category: event.data.cartLine.merchandise.product.type,
+      content_name: event.data.cartLine.merchandise.product.title,
+      content_type: "product",
+      contents: [
+        {
+          id: event.data.cartLine.merchandise.product.id,
+          quantity: event.data.cartLine.quantity,
+          item_price: event.data.cartLine.merchandise.price.amount,
+        },
+      ],
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      value: event.data.cartLine.cost.totalAmount.amount,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    addToCartObj.pt_browser_side = {
+      value: event.data.cartLine.cost.totalAmount.amount,
+      order_quantity: event.data.cartLine.quantity,
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      line_items: [
+        {
+          product_name: event.data.cartLine.merchandise.product.title,
+          product_id: event.data.cartLine.merchandise.product.id,
+          product_variant_id: event.data.cartLine.merchandise.id,
+          product_category: event.data.cartLine.merchandise.product.type,
+          product_brand: event.data.cartLine.merchandise.product.vendor ? event.data.cartLine.merchandise.product.vendor : "",
+          product_price: event.data.cartLine.merchandise.price.amount,
+          product_quantity: event.data.cartLine.quantity,
+        },
+      ],
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    addToCartObj.snap_browser_side = {
+      price: event.data.cartLine.cost.totalAmount.amount,
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      item_ids: [event.data.cartLine.merchandise.product.id],
+      item_category: event.data.cartLine.merchandise.product.type,
+      brands: [event.data.cartLine.merchandise.product.vendor].includes("") ? "" : [event.data.cartLine.merchandise.product.vendor],
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...addToCartObj, ...addToCartContextData });
+});
+
+analytics.subscribe("product_removed_from_cart", (event) => {
+  var removeFromCartContextData = contextData() || {};
+  var removeFromCartObj = {
+    event: "remove_from_cart",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    product_variant_id: [event.data.cartLine.merchandise.id],
+    product_sku: [event.data.cartLine.merchandise.sku],
+    ecommerce: {
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      value: event.data.cartLine.cost.totalAmount.amount,
+      items: [
+        {
+          item_id: event.data.cartLine.merchandise.product.id,
+          item_name: event.data.cartLine.merchandise.product.title ? event.data.cartLine.merchandise.product.title : event.data.cartLine.merchandise.product.untranslatedTitle,
+          item_brand: event.data.cartLine.merchandise.product.vendor,
+          item_category: event.data.cartLine.merchandise.product.type,
+          item_variant: event.data.cartLine.merchandise.title ? event.data.cartLine.merchandise.title : "",
+          price: event.data.cartLine.merchandise.price.amount,
+          quantity: event.data.cartLine.quantity,
+        },
+      ],
+    },
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    removeFromCartObj.fb_browser_side = {
+      content_ids: [event.data.cartLine.merchandise.product.id],
+      content_category: event.data.cartLine.merchandise.product.type,
+      content_name: event.data.cartLine.merchandise.product.title ? event.data.cartLine.merchandise.product.title : event.data.cartLine.merchandise.product.untranslatedTitle,
+      content_type: "product",
+      contents: [
+        {
+          id: event.data.cartLine.merchandise.product.id,
+          quantity: event.data.cartLine.quantity,
+          item_price: event.data.cartLine.merchandise.price.amount,
+        },
+      ],
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      value: event.data.cartLine.cost.totalAmount.amount,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    removeFromCartObj.pt_browser_side = {
+      value: event.data.cartLine.cost.totalAmount.amount,
+      order_quantity: event.data.cartLine.quantity,
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      line_items: [
+        {
+          product_name: event.data.cartLine.merchandise.product.title ? event.data.cartLine.merchandise.product.title : event.data.cartLine.merchandise.product.untranslatedTitle,
+          product_id: event.data.cartLine.merchandise.product.id,
+          product_variant_id: event.data.cartLine.merchandise.id,
+          product_category: event.data.cartLine.merchandise.product.type,
+          product_brand: event.data.cartLine.merchandise.product.vendor ? event.data.cartLine.merchandise.product.vendor : "",
+          product_price: event.data.cartLine.merchandise.price.amount,
+          product_quantity: event.data.cartLine.quantity,
+        },
+      ],
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    removeFromCartObj.snap_browser_side = {
+      price: event.data.cartLine.cost.totalAmount.amount,
+      currency: event.data.cartLine.cost.totalAmount.currencyCode,
+      item_ids: [event.data.cartLine.merchandise.product.id],
+      item_category: event.data.cartLine.merchandise.product.type,
+      brands: [event.data.cartLine.merchandise.product.vendor].includes("") ? "" : [event.data.cartLine.merchandise.product.vendor],
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...removeFromCartObj, ...removeFromCartContextData });
+});
+
+analytics.subscribe("cart_viewed", (event) => {
+  var cartViewedContextData = contextData() || {};
+  var viewCartObj;
+  var ecom = {};
+  var contentId;
+  var contentCategory;
+  var contentName;
+  var content;
+  var ptItem;
+  var contentBrand;
+  var variantId;
+  var sku;
+  if (event.data.cart !== null) {
+    var data = event.data.cart.lines;
+    var ItemArray = data.map((eachItem) => {
+      var Item = {
+        item_id: eachItem.merchandise.product.id,
+        item_name: eachItem.merchandise.product.title,
+        item_brand: eachItem.merchandise.product.vendor,
+        item_category: eachItem.merchandise.product.type,
+        item_variant: eachItem.merchandise.title ? eachItem.merchandise.title : "",
+        price: eachItem.merchandise.price.amount,
+        quantity: eachItem.quantity,
+      };
+
+      return Item;
+    });
+    ptItem = data.map((eachItem) => {
+      var Item = {
+        product_id: eachItem.merchandise.product.id,
+        product_name: eachItem.merchandise.product.title,
+        product_variant_id: eachItem.merchandise.id,
+        product_brand: eachItem.merchandise.product.vendor ? eachItem.merchandise.product.vendor : "",
+        product_category: eachItem.merchandise.product.type,
+        product_price: eachItem.merchandise.price.amount,
+        product_quantity: eachItem.quantity,
+      };
+
+      return Item;
+    });
+    sku = data.map((eachItem) => eachItem.merchandise.sku);
+    variantId = data.map((eachItem) => eachItem.merchandise.id);
+    contentId = data.map((eachItem) => eachItem.merchandise.product.id);
+    contentCategory = data.map((eachItem) => eachItem.merchandise.product.type).includes("") ? "" : data.map((eachItem) => eachItem.merchandise.product.type).join();
+    contentBrand = data.map((eachItem) => (eachItem.merchandise.product.vendor ? eachItem.merchandise.product.vendor : "")).includes("") ? "" : data.map((eachItem) => eachItem.merchandise.product.vendor);
+    contentName = data.map((eachItem) => eachItem.merchandise.product.title).join();
+    content = data.map((eachItem) => {
+      var pItem = {
+        id: eachItem.merchandise.product.id,
+        quantity: eachItem.quantity,
+        item_price: eachItem.merchandise.price.amount,
+      };
+      return pItem;
+    });
+    ecom.currency = event.data.cart.cost.totalAmount.currencyCode;
+    ecom.value = event.data.cart.cost.totalAmount.amount;
+    ecom.items = ItemArray;
+  }
+
+  viewCartObj = {
+    event: "view_cart",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    product_variant_id: variantId,
+    product_sku: sku,
+    itemTotalQuantity: event.data.cart.totalQuantity,
+    ecommerce: ecom,
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    viewCartObj.fb_browser_side = {
+      content_ids: contentId,
+      content_category: contentCategory,
+      content_name: contentName,
+      content_type: "product",
+      contents: content,
+      currency: event.data.cart.cost.totalAmount.currencyCode,
+      value: event.data.cart.cost.totalAmount.amount,
+      num_items: event.data.cart.totalQuantity,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    viewCartObj.pt_browser_side = {
+      value: event.data.cart.cost.totalAmount.amount,
+      order_quantity: event.data.cart.totalQuantity,
+      currency: event.data.cart.cost.totalAmount.currencyCode,
+      line_items: ptItem,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    viewCartObj.snap_browser_side = {
+      price: event.data.cart.cost.totalAmount.amount,
+      currency: event.data.cart.cost.totalAmount.currencyCode,
+      item_ids: contentId,
+      item_category: contentCategory,
+      brands: contentBrand,
+      number_items: event.data.cart.totalQuantity,
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...viewCartObj, ...cartViewedContextData });
+});
+
+analytics.subscribe("gokwik_events", (event) => {
+  if (event.customData.name === "Started_Checkout_GK") {
+    var beginCheckoutContextData = contextData() || {};
+    var checkoutObj;
+    var ecom = {};
+    var contentId;
+    var contentName;
+    var content;
+    var totalQuantity;
+    var ptItem;
+    var variantId;
+
+    if (event.customData.data.data !== null) {
+      var data = event.customData.data.data.Products;
+      var ItemArray = data.map((eachItem) => {
+        var Item = {
+          item_id: eachItem["Product ID"].toString(),
+          item_name: eachItem["Product Name"],
+          item_variant: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"] : "",
+          price: eachItem["Product Price"],
+          quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      ptItem = data.map((eachItem) => {
+        var Item = {
+          product_id: eachItem["Product ID"].toString(),
+          product_name: eachItem["Product Name"],
+          product_variant_id: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"].toString() : "",
+          product_price: eachItem["Product Price"],
+          product_quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      variantId = data.map((eachItem) => eachItem["Product Variant Id"].toString());
+      contentId = data.map((eachItem) => eachItem["Product ID"].toString());
+      contentName = data.map((eachItem) => eachItem["Product Name"]).join();
+      content = data.map((eachItem) => {
+        var pItem = {
+          id: eachItem["Product ID"].toString(),
+          quantity: eachItem["Product Quantity"],
+          item_price: eachItem["Product Price"],
+        };
+        return pItem;
+      });
+      totalQuantity = data.reduce((accumulator, currentValue) => (accumulator = accumulator + currentValue["Product Quantity"]), 0);
+      ecom.currency = event.customData.data.data.currency;
+      ecom.value = parseFloat(event.customData.data.data["Original Cart Price"]);
+      ecom.coupon = event.customData.data.data["Coupon Code"];
+      ecom.items = ItemArray;
+    }
+
+    checkoutObj = {
+      event: "begin_checkout",
+      client_id: event.clientId,
+      event_time: event.timestamp,
+      event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+      event_source: "custom_pixel",
+      product_variant_id: variantId,
+      itemTotalQuantity: totalQuantity,
+      email: event.customData.data.data.Email ? event.customData.data.data.Email : "",
+      phone: event.customData.data.data["Mobile Number"] ? event.customData.data.data["Mobile Number"] : "",
+      customer_address_Line1: event.customData.data.data["Full Address"] ? event.customData.data.data["Full Address"] : "",
+      customer_city: event.customData.data.data.City ? event.customData.data.data.City : "",
+      customer_country: event.customData.data.data.Country ? event.customData.data.data.Country : "",
+      customer_firstName: event.customData.data.data["First Name"] ? event.customData.data.data["First Name"] : "",
+      customer_lastName: event.customData.data.data["Last Name"] ? event.customData.data.data["Last Name"] : "",
+      customer_state: event.customData.data.data.State ? event.customData.data.data.State : "",
+      customer_zip: event.customData.data.data.Pincode ? event.customData.data.data.Pincode.toString() : "",
+      ecommerce: ecom,
+    };
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+      checkoutObj.fb_browser_side = {
+        content_ids: contentId,
+        content_name: contentName,
+        content_type: "product",
+        contents: content,
+        currency: event.customData.data.data.currency,
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        num_items: totalQuantity,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+      checkoutObj.pt_browser_side = {
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        order_quantity: totalQuantity,
+        currency: event.customData.data.data.currency,
+        line_items: ptItem,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+      checkoutObj.snap_browser_side = {
+        price: parseFloat(event.customData.data.data["Original Cart Price"]),
+        currency: event.customData.data.data.currency,
+        item_ids: contentId,
+        number_items: totalQuantity,
+        payment_info_available: 1,
+      };
+    }
+    dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+    window.dataLayer.push({ ...checkoutObj, ...beginCheckoutContextData });
+  }
+});
+
+analytics.subscribe("gokwik_events", (event) => {
+  if (event.customData.name === "Address_Step_Reached_GK") {
+    var checkoutShippingInfoContextData = contextData() || {};
+    var shippingInfoSubmitted;
+    var ecom = {};
+    var contentId;
+    var contentName;
+    var content;
+    var totalQuantity;
+    var ptItem;
+    var variantId;
+    if (event.customData.data.data !== null) {
+      var data = event.customData.data.data.Products;
+      var ItemArray = data.map((eachItem) => {
+        var Item = {
+          item_id: eachItem["Product ID"].toString(),
+          item_name: eachItem["Product Name"],
+          item_variant: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"] : "",
+          price: eachItem["Product Price"],
+          quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      ptItem = data.map((eachItem) => {
+        var Item = {
+          product_id: eachItem["Product ID"].toString(),
+          product_name: eachItem["Product Name"],
+          product_variant_id: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"].toString() : "",
+          product_price: eachItem["Product Price"],
+          product_quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      variantId = data.map((eachItem) => eachItem["Product Variant Id"].toString());
+      contentId = data.map((eachItem) => eachItem["Product ID"].toString());
+      contentName = data.map((eachItem) => eachItem["Product Name"]).join();
+      content = data.map((eachItem) => {
+        var pItem = {
+          id: eachItem["Product ID"].toString(),
+          quantity: eachItem["Product Quantity"],
+          item_price: eachItem["Product Price"],
+        };
+        return pItem;
+      });
+      totalQuantity = data.reduce((accumulator, currentValue) => (accumulator = accumulator + currentValue["Product Quantity"]), 0);
+      ecom.currency = event.customData.data.data.currency;
+      ecom.value = parseFloat(event.customData.data.data["Original Cart Price"]);
+      ecom.coupon = event.customData.data.data["Coupon Code"];
+      ecom.items = ItemArray;
+    }
+
+    shippingInfoSubmitted = {
+      event: "add_shipping_info",
+      client_id: event.clientId,
+      event_time: event.timestamp,
+      event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+      event_source: "custom_pixel",
+      product_variant_id: variantId,
+      itemTotalQuantity: totalQuantity,
+      email: event.customData.data.data.Email ? event.customData.data.data.Email : "",
+      phone: event.customData.data.data["Mobile Number"] ? event.customData.data.data["Mobile Number"] : "",
+      customer_address_Line1: event.customData.data.data["Full Address"] ? event.customData.data.data["Full Address"] : "",
+      customer_city: event.customData.data.data.City ? event.customData.data.data.City : "",
+      customer_country: event.customData.data.data.Country ? event.customData.data.data.Country : "",
+      customer_firstName: event.customData.data.data["First Name"] ? event.customData.data.data["First Name"] : "",
+      customer_lastName: event.customData.data.data["Last Name"] ? event.customData.data.data["Last Name"] : "",
+      customer_state: event.customData.data.data.State ? event.customData.data.data.State : "",
+      customer_zip: event.customData.data.data.Pincode ? event.customData.data.data.Pincode.toString() : "",
+      ecommerce: ecom,
+    };
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+      shippingInfoSubmitted.fb_browser_side = {
+        content_ids: contentId,
+        content_name: contentName,
+        content_type: "product",
+        contents: content,
+        currency: event.customData.data.data.currency,
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        num_items: totalQuantity,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+      shippingInfoSubmitted.pt_browser_side = {
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        order_quantity: totalQuantity,
+        currency: event.customData.data.data.currency,
+        line_items: ptItem,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+      shippingInfoSubmitted.snap_browser_side = {
+        price: parseFloat(event.customData.data.data["Original Cart Price"]),
+        currency: event.customData.data.data.currency,
+        item_ids: contentId,
+        number_items: totalQuantity,
+        payment_info_available: 1,
+      };
+    }
+    dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+    window.dataLayer.push({ ...shippingInfoSubmitted, ...checkoutShippingInfoContextData });
+  }
+});
+
+analytics.subscribe("gokwik_events", (event) => {
+  if (event.customData.name === "Payment_Method_Selected_GK") {
+    var checkoutPaymentInfoContextData = contextData() || {};
+    var paymentInfoSubmittedObj;
+    var ecom = {};
+    var contentId;
+    var contentName;
+    var content;
+    var totalQuantity;
+    var ptItem;
+    var variantId;
+    if (event.customData.data.data !== null) {
+      var data = event.customData.data.data.Products;
+      var ItemArray = data.map((eachItem) => {
+        var Item = {
+          item_id: eachItem["Product ID"].toString(),
+          item_name: eachItem["Product Name"],
+          item_variant: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"] : "",
+          price: eachItem["Product Price"],
+          quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      ptItem = data.map((eachItem) => {
+        var Item = {
+          product_id: eachItem["Product ID"].toString(),
+          product_name: eachItem["Product Name"],
+          product_variant_id: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"].toString() : "",
+          product_price: eachItem["Product Price"],
+          product_quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      variantId = data.map((eachItem) => eachItem["Product Variant Id"].toString());
+      contentId = data.map((eachItem) => eachItem["Product ID"].toString());
+      contentName = data.map((eachItem) => eachItem["Product Name"]).join();
+      content = data.map((eachItem) => {
+        var pItem = {
+          id: eachItem["Product ID"].toString(),
+          quantity: eachItem["Product Quantity"],
+          item_price: eachItem["Product Price"],
+        };
+        return pItem;
+      });
+      totalQuantity = data.reduce((accumulator, currentValue) => (accumulator = accumulator + currentValue["Product Quantity"]), 0);
+      ecom.currency = event.customData.data.data.currency;
+      ecom.value = parseFloat(event.customData.data.data["Original Cart Price"]);
+      ecom.payment_type = event.customData.data.data["Payment method"];
+      ecom.coupon = event.customData.data.data["Coupon Code"];
+      ecom.items = ItemArray;
+    }
+
+    paymentInfoSubmittedObj = {
+      event: "add_payment_info",
+      client_id: event.clientId,
+      event_time: event.timestamp,
+      event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+      event_source: "custom_pixel",
+      product_variant_id: variantId,
+      itemTotalQuantity: totalQuantity,
+      email: event.customData.data.data.Email ? event.customData.data.data.Email : "",
+      phone: event.customData.data.data["Mobile Number"] ? event.customData.data.data["Mobile Number"] : "",
+      customer_address_Line1: event.customData.data.data["Full Address"] ? event.customData.data.data["Full Address"] : "",
+      customer_city: event.customData.data.data.City ? event.customData.data.data.City : "",
+      customer_country: event.customData.data.data.Country ? event.customData.data.data.Country : "",
+      customer_firstName: event.customData.data.data["First Name"] ? event.customData.data.data["First Name"] : "",
+      customer_lastName: event.customData.data.data["Last Name"] ? event.customData.data.data["Last Name"] : "",
+      customer_state: event.customData.data.data.State ? event.customData.data.data.State : "",
+      customer_zip: event.customData.data.data.Pincode ? event.customData.data.data.Pincode.toString() : "",
+      ecommerce: ecom,
+    };
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+      paymentInfoSubmittedObj.fb_browser_side = {
+        content_ids: contentId,
+        content_name: contentName,
+        content_type: "product",
+        contents: content,
+        currency: event.customData.data.data.currency,
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        num_items: totalQuantity,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+      paymentInfoSubmittedObj.pt_browser_side = {
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        order_quantity: totalQuantity,
+        currency: event.customData.data.data.currency,
+        line_items: ptItem,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+      paymentInfoSubmittedObj.snap_browser_side = {
+        price: parseFloat(event.customData.data.data["Original Cart Price"]),
+        currency: event.customData.data.data.currency,
+        item_ids: contentId,
+        number_items: totalQuantity,
+        payment_info_available: 1,
+      };
+    }
+    dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+    window.dataLayer.push({ ...paymentInfoSubmittedObj, ...checkoutPaymentInfoContextData });
+  }
+});
+
+analytics.subscribe("gokwik_events", (event) => {
+  if (event.customData.name === "Order_Placed_GK") {
+    console.log(event);
+    var purchaseContextData = contextData() || {};
+    var checkoutCompleteObj;
+    var ecom = {};
+    var contentId;
+    var contentName;
+    var content;
+    var totalQuantity;
+    var ptItem;
+    var variantId;
+    if (event.customData.data.data !== null) {
+      var data = event.customData.data.data.Products;
+      var ItemArray = data.map((eachItem) => {
+        var Item = {
+          item_id: eachItem["Product ID"].toString(),
+          item_name: eachItem["Product Name"],
+          item_variant: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"] : "",
+          price: eachItem["Product Price"],
+          quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      ptItem = data.map((eachItem) => {
+        var Item = {
+          product_id: eachItem["Product ID"].toString(),
+          product_name: eachItem["Product Name"],
+          product_variant_id: eachItem["Product Variant Id"] ? eachItem["Product Variant Id"].toString() : "",
+          product_price: eachItem["Product Price"],
+          product_quantity: eachItem["Product Quantity"],
+        };
+
+        return Item;
+      });
+      variantId = data.map((eachItem) => eachItem["Product Variant Id"].toString());
+      contentId = data.map((eachItem) => eachItem["Product ID"].toString());
+      contentName = data.map((eachItem) => eachItem["Product Name"]).join();
+      content = data.map((eachItem) => {
+        var pItem = {
+          id: eachItem["Product ID"].toString(),
+          quantity: eachItem["Product Quantity"],
+          item_price: eachItem["Product Price"],
+        };
+        return pItem;
+      });
+      totalQuantity = data.reduce((accumulator, currentValue) => (accumulator = accumulator + currentValue["Product Quantity"]), 0);
+      ecom.currency = event.customData.data.data.currency;
+      ecom.value = parseFloat(event.customData.data.data["Original Cart Price"]);
+      ecom.coupon = event.customData.data.data["Coupon Code"];
+      ecom.tax = parseFloat(event.customData.data.data.tax);
+      ecom.shipping = parseFloat(event.customData.data.data.shipping_price);
+      ecom.transaction_id = event.customData.data.data['Order Number'].toString();
+      ecom.items = ItemArray;
+    }
+
+    checkoutCompleteObj = {
+      event: "purchase",
+      client_id: event.clientId,
+      event_time: event.timestamp,
+      event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+      event_source: "custom_pixel",
+      product_variant_id: variantId,
+      itemTotalQuantity: totalQuantity,
+      email: event.customData.data.data.Email ? event.customData.data.data.Email : "",
+      phone: event.customData.data.data["Mobile Number"] ? event.customData.data.data["Mobile Number"] : "",
+      customer_address_Line1: event.customData.data.data["Full Address"] ? event.customData.data.data["Full Address"] : "",
+      customer_city: event.customData.data.data.City ? event.customData.data.data.City : "",
+      customer_country: event.customData.data.data.Country ? event.customData.data.data.Country : "",
+      customer_firstName: event.customData.data.data["First Name"] ? event.customData.data.data["First Name"] : "",
+      customer_lastName: event.customData.data.data["Last Name"] ? event.customData.data.data["Last Name"] : "",
+      customer_state: event.customData.data.data.State ? event.customData.data.data.State : "",
+      customer_zip: event.customData.data.data.Pincode ? event.customData.data.data.Pincode.toString() : "",
+      ecommerce: ecom,
+    };
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+      checkoutCompleteObj.fb_browser_side = {
+        content_ids: contentId,
+        content_name: contentName,
+        content_type: "product",
+        contents: content,
+        currency: event.customData.data.data.currency,
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        num_items: totalQuantity,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+      checkoutCompleteObj.pt_browser_side = {
+        value: parseFloat(event.customData.data.data["Original Cart Price"]),
+        order_quantity: totalQuantity,
+        currency: event.customData.data.data.currency,
+        order_id: event.customData.data.data.order_id,
+        promo_code: event.customData.data.data["Coupon Code"],
+        line_items: ptItem,
+      };
+    }
+
+    if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+      checkoutCompleteObj.snap_browser_side = {
+        price: parseFloat(event.customData.data.data["Original Cart Price"]),
+        currency: event.customData.data.data.currency,
+        item_ids: contentId,
+        number_items: totalQuantity,
+        transaction_id: event.customData.data.data.order_id,
+      };
+    }
+    dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+    window.dataLayer.push({ ...checkoutCompleteObj, ...purchaseContextData, page_location: event.context.document.location.href, page_referrer: event.context.document.referrer, page_title: event.context.document.title, page_path: event.context.document.location.pathname, search_param: event.context.document.location.search, hash_param: event.context.document.location.hash });
+  }
+});
+
+analytics.subscribe("search_submitted", (event) => {
+  var searchContextData = contextData() || {};
+  var searchSubmittedObj;
+  var ecom = {};
+  var ItemArray;
+  var variantId;
+  var sku;
+  var data = event.data.searchResult.productVariants;
+  if (data.length > 0) {
+    ItemArray = data.map((eachItem) => {
+      var Item = {
+        item_id: eachItem.product.id,
+        item_name: eachItem.product.title,
+        item_brand: eachItem.product.vendor,
+        item_category: eachItem.product.type,
+        item_variant: eachItem.title ? eachItem.title : "",
+        price: eachItem.price.amount,
+        quantity: 1,
+      };
+
+      return Item;
+    });
+  }
+  ecom.value = data.reduce((accumulator, currentValue) => (accumulator = accumulator + currentValue.price.amount), 0);
+  ecom.items = ItemArray;
+  variantId = data.map((eachItem) => eachItem.id);
+  sku = data.map((eachItem) => eachItem.sku);
+
+  searchSubmittedObj = {
+    event: "search",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    search_term: event.data.searchResult.query,
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    searchSubmittedObj.fb_browser_side = {
+      search_string: event.data.searchResult.query,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    searchSubmittedObj.pt_browser_side = {
+      search_query: event.data.searchResult.query,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    searchSubmittedObj.snap_browser_side = {
+      search_string: event.data.searchResult.query,
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...searchSubmittedObj, ...searchContextData });
+
+  //This is only for Google Ads Dynamic Remarketing So don't delete it//
+  window.dataLayer.push({
+    event: "view_search_results",
+    client_id: event.clientId,
+    page_location: event.context.document.location.href,
+    page_referrer: event.context.document.referrer,
+    page_title: event.context.document.title,
+    page_path: event.context.document.location.pathname,
+    search_param: event.context.document.location.search,
+    hash_param: event.context.document.location.hash,
+    language: event.context.navigator.language,
+    screen_width: event.context.window.outerWidth,
+    screen_height: event.context.window.outerHeight,
+    user_agent: event.context.navigator.userAgent,
+    event_time: event.timestamp,
+    event_time_seconds: Math.floor(new Date(event.timestamp) / 1000),
+    product_variant_id: variantId,
+    product_sku: sku,
+    event_source: "custom_pixel",
+    search_term: event.data.searchResult.query,
+    ecommerce: ecom,
+  });
+});
+
+analytics.subscribe("collection_viewed", (event) => {
+  var collectionViewedContextData = contextData() || {};
+  var collectionViewedObj;
+  var ecom = {};
+  var contentId;
+  var contentCategory;
+  var contentName;
+  var content;
+  var ItemArray;
+  var variantId;
+  var sku;
+  var ptItem;
+  var data = event.data.collection.productVariants;
+  if (data.length > 0) {
+    ItemArray = data.map((eachItem) => {
+      var Item = {
+        item_id: eachItem.product.id,
+        item_name: eachItem.product.title,
+        item_brand: eachItem.product.vendor,
+        item_category: eachItem.product.type,
+        item_variant: eachItem.title ? eachItem.title : "",
+        price: eachItem.price.amount,
+        quantity: 1,
+      };
+
+      return Item;
+    });
+    ptItem = data.map((eachItem) => {
+      var Item = {
+        product_id: eachItem.product.id,
+        product_name: eachItem.product.title,
+        product_variant_id: eachItem.id,
+        product_brand: eachItem.product.vendor ? eachItem.product.vendor : "",
+        product_category: eachItem.product.type,
+        product_price: eachItem.price.amount,
+        product_quantity: 1,
+      };
+
+      return Item;
+    });
+    variantId = data.map((eachItem) => eachItem.id);
+    sku = data.map((eachItem) => eachItem.sku);
+    contentId = data.map((eachItem) => eachItem.product.id);
+    contentCategory = data.map((eachItem) => eachItem.product.type).includes("") ? "" : data.map((eachItem) => eachItem.product.type).join();
+    contentName = data.map((eachItem) => eachItem.product.title).join();
+    content = data.map((eachItem) => {
+      var pItem = {
+        id: eachItem.product.id,
+        quantity: 1,
+        item_price: eachItem.price.amount,
+      };
+      return pItem;
+    });
+    ecom.item_list_id = event.data.collection.id;
+    ecom.item_list_name = event.data.collection.title;
+    ecom.items = ItemArray;
+  }
+
+  collectionViewedObj = {
+    event: "view_item_list",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    product_variant_id: variantId,
+    product_sku: sku,
+    ecommerce: ecom,
+  };
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("facebook")).length > 0) {
+    collectionViewedObj.fb_browser_side = {
+      content_ids: contentId,
+      content_category: contentCategory,
+      content_name: contentName,
+      content_type: "product",
+      contents: content,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("pinterest")).length > 0) {
+    collectionViewedObj.pt_browser_side = {
+      line_items: ptItem,
+    };
+  }
+
+  if (trackingPlatform.filter((str) => str.toLowerCase().includes("snapchat")).length > 0) {
+    collectionViewedObj.snap_browser_side = {
+      item_list_id: event.data.collection.id,
+      item_list_name: event.data.collection.title,
+      item_ids: contentId,
+    };
+  }
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...collectionViewedObj, ...collectionViewedContextData });
+});
+
+analytics.subscribe("form_submitted", (event) => {
+  var formSubmitContextData = contextData() || {};
+  var formSubmitObj = {
+    event: "form_submitted",
+    client_id: event.clientId,
+    event_time: event.timestamp,
+    event_time_seconds: Math.round(new Date(event.timestamp) / 1000),
+    event_source: "custom_pixel",
+    id: event.data.element.id ? event.data.element.id : undefined,
+    action: event.data.element.action ? event.data.element.action : undefined,
+    elements: event.data.element.elements ? event.data.element.elements : undefined,
+  };
+  dataLayer.push({ ecommerce: null, pt_browser_side: null, snap_browser_side: null, fb_browser_side: null });
+  window.dataLayer.push({ ...formSubmitObj, ...formSubmitContextData });
+});
+analytics.subscribe('contact_form_submit', function (event) {
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push(event.customData);
+});
+analytics.subscribe("whatsapp_click", (event) => {
+  window.dataLayer = window.dataLayer || [];
+
+  dataLayer.push({
+    event: "whatsapp_click",
+    link_url: event.customData.href,
+    link_text: event.customData.text,
+    link_id: event.customData.id,
+    link_classes: event.customData.classes,
+    timestamp: event.customData.timestamp
+  });
+});
+
+});})(self.webPixelsManager.createShopifyExtend('133890278', 'custom'));
+
+</script>
+
+  <script type="text/javascript" async="" src="./f.txt"></script><script type="text/javascript" async="" src="./f(1).txt"></script><script type="text/javascript" async="" src="./f(2).txt"></script><script type="text/javascript" async="" src="./f(3).txt"></script></head>
+  <body>
+
+<script type="text/javascript" id="" charset="">(function(){console.log("[MM DIRECT META TEST] starting");var e="335630437514994";window.fbq||!function(c,f,g,h,a,b,d){c.fbq||(a=c.fbq=function(){a.callMethod?a.callMethod.apply(a,arguments):a.queue.push(arguments)},c._fbq||(c._fbq=a),a.push=a,a.loaded=!0,a.version="2.0",a.queue=[],b=f.createElement(g),b.async=!0,b.src=h,b.onload=function(){console.log("[MM DIRECT META TEST] fbevents.js loaded")},b.onerror=function(k){console.log("[MM DIRECT META TEST] fbevents.js failed",k)},d=f.getElementsByTagName(g)[0],
+d.parentNode.insertBefore(b,d))}(window,document,"script","https://connect.facebook.net/en_US/fbevents.js");fbq("set","autoConfig",!1,e);fbq("init",e);console.log("[MM DIRECT META TEST] fbq called")})();</script><script type="text/javascript" id="" charset="">console.log("[MM META DEBUG] GTM tag fired");console.log("[MM META DEBUG] typeof window.fbq:",typeof window.fbq);console.log("[MM META DEBUG] typeof fbq:",typeof fbq);
+(function(){for(var b=document.getElementsByTagName("script"),c=[],a=0;a<b.length;a++)b[a].src&&(b[a].src.indexOf("fbevents")>-1||b[a].src.indexOf("connect.facebook.net")>-1||b[a].src.indexOf("facebook")>-1)&&c.push(b[a].src);console.log("[MM FB SCRIPT CHECK] fb scripts:",c);console.log("[MM FB SCRIPT CHECK] fbq type:",typeof window.fbq);console.log("[MM FB SCRIPT CHECK] fbq.loaded:",window.fbq&&window.fbq.loaded);console.log("[MM FB SCRIPT CHECK] fbq.version:",window.fbq&&window.fbq.version);console.log("[MM FB SCRIPT CHECK] fbq.queue:",
+window.fbq&&window.fbq.queue)})();</script></body></html>

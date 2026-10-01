@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<!-- saved from url=(0125)https://girorganic.com/web-pixels@c8540278we853e1abpb62b2c4amde256306/custom/web-pixel-143917286@7/sandbox/modern/pages/about -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>From Farm To Organic &amp; Healty Life - Gir Organic – GirOrganic</title>
+    <script src="./sc8540278we853e1abpb62b2c4amde256306m.js.download"></script>
+
+    <script type="text/javascript">
+  (function(shopify) {shopify.extend('WebPixel::Render', function(api) {
+var analytics=api.analytics,browser=api.browser,init=api.init;
+/* ─────────────────────────────────────────────────────────────────────────────
+   Cookiebees — Shopify Custom Pixel
+
+   Paste into Shopify admin: Settings → Customer events → Add custom pixel.
+   Replace mmtrk_e531a7c305c176aeae16c3f81deb7a992a83 with the workspace's tracking key, then Save + Connect.
+
+   WHAT THIS DOES AND DOES NOT DO
+   It sends ECOMMERCE EVENTS ONLY. Page views belong to the theme script, which
+   runs on the real page and therefore sees the real URL without a sandbox in
+   the way.
+
+   There is one exception, off by default: SEND_PAGE_VIEWS below. Turn it on
+   only to cover a theme whose tag is missing from some templates, and turn it
+   off once that is fixed.
+
+   WHY THE CODE LOOKS THE WAY IT DOES
+   A custom pixel runs inside a sandboxed iframe, so the usual browser globals
+   describe the SANDBOX, not the store:
+
+     document.location.href  -> the pixel's own iframe URL, not the product page
+     document.referrer       -> the storefront, not where the shopper came from
+     document.title          -> empty
+     document.cookie         -> empty, so no mm_cid and no click IDs
+
+   Both have replacements, and both replacements are easy to get wrong:
+
+     event.context.document.*      the REAL page url / referrer / title
+     browser.cookie.get(name)      returns a PROMISE, so it must be awaited
+
+   The cookie API is the one that bites. Reading it without await yields a
+   Promise object rather than a value, every event posts with no identity, and
+   nothing errors - it just quietly stops attributing. Every read below is
+   awaited before anything is sent.
+
+   IDENTITY
+   mm_cid is minted by the theme script on the real page. This pixel only READS
+   it. It must never mint its own: a second id generated in here would not match
+   the one the theme script wrote, and the shopper would split into two visitors
+   halfway down their own funnel. If the cookie is genuinely absent the event is
+   still sent without it - the order still reconciles by order id later.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const KEY = "mmtrk_e531a7c305c176aeae16c3f81deb7a992a83";
+const ENDPOINT = `https://bees.girorganic.com/c/event/${KEY}`;
+const PV_ENDPOINT = `https://bees.girorganic.com/t/pv/${KEY}`;
+const ATTR_ENDPOINT = `https://bees.girorganic.com/t/attr/${KEY}`;
+
+/* STOPGAP - normally false.
+   Set true only while the theme tag is missing from some page templates, to
+   keep page paths flowing until it is fixed. Safe to leave on during the
+   handover: the server drops a page view that already arrived for the same
+   visitor and path within 15 seconds, so the theme beacon and this cannot
+   double-count each other. Turn it off once the theme is confirmed on every
+   template - the theme beacon sees the real page directly and does not depend
+   on a sandbox. */
+const SEND_PAGE_VIEWS = false;
+
+// Cookies worth carrying: our visitor id, plus the click and browser ids the ad
+// platforms need to match a conversion back to the click that caused it.
+const COOKIES = [
+  'mm_cid', 'mm_id',
+  // Shopify's own cart token, which it keeps in the `cart` cookie and stamps
+  // on the finished order as cart_token. It is the one identifier that exists
+  // on BOTH banks of the checkout gap without anyone forwarding it: the
+  // shopper has it from the first add-to-cart, and the order carries it home.
+  // That makes it the bridge that survives a checkout app we have never seen -
+  // any provider built on the Shopify cart inherits it for free.
+  'cart',
+  // GoKwik's shopper id and Shopify's own visitor id: both readable on the
+  // store's domain, and GoKwik forwards both onto the order.
+  'kp_user_id', 'gokwik_cid', '_shopify_y', '_shopify_s',
+  '_fbp', '_fbc',
+  '_gcl_aw', '_gcl_dc', '_gcl_gb', '_gcl_ag', '_gac_UA',
+  '_ga',
+  'ttclid', '_ttp',
+  'msclkid',
+  'mm_rc',
+];
+
+// Shopify's event names -> the GA4 names our ingest already understands, so
+// this pixel and the older GTM path land in the same shape.
+const NAMES = {
+  page_viewed: 'page_view',
+  product_viewed: 'view_item',
+  collection_viewed: 'view_item_list',
+  search_submitted: 'search',
+  product_added_to_cart: 'add_to_cart',
+  cart_viewed: 'view_cart',
+  checkout_started: 'begin_checkout',
+  // The mid-checkout steps are where the money actually dies: contact ->
+  // address -> shipping -> payment. Capturing each lets the funnel say
+  // "shipping-cost surprise" vs "payment methods" instead of just "checkout".
+  checkout_contact_info_submitted: 'add_contact_info',
+  checkout_address_info_submitted: 'add_address_info',
+  checkout_shipping_info_submitted: 'add_shipping_info',
+  payment_info_submitted: 'add_payment_info',
+  checkout_completed: 'purchase',
+};
+
+// A CUSTOM pixel is handed `analytics` / `browser` / `init` / `settings` as bare
+// globals. An APP pixel gets the same things under a single `api` argument.
+// Resolve whichever exists so this file can be pasted into either without the
+// cookie reads silently returning undefined.
+const SB = (typeof api !== 'undefined' && api) ? api : undefined;
+const BROWSER = (typeof browser !== 'undefined' && browser) ? browser : (SB && SB.browser);
+const INIT = (typeof init !== 'undefined' && init) ? init : (SB && SB.init);
+const PRIVACY = (typeof customerPrivacy !== 'undefined' && customerPrivacy)  ? customerPrivacy
+  : ((SB && SB.customerPrivacy) || (INIT && INIT.customerPrivacy));
+
+async function readCookies() {
+  const out = {};
+  if (!BROWSER || !BROWSER.cookie) return out;
+  await Promise.all(COOKIES.map(async (name) => {
+    try {
+      const v = await BROWSER.cookie.get(name);
+      if (v) out[name] = String(v);
+    } catch (e) { /* a blocked cookie is not a reason to drop the event */ }
+  }));
+  return out;
+}
+
+/**
+ * The visit id, shared with the theme beacon.
+ *
+ * NOT raw sessionStorage: in here that is the sandbox iframe's own storage, a
+ * different origin from the storefront, so the beacon would never see what we
+ * wrote and we would never see what it wrote - one visit would arrive as two
+ * under two ids. Shopify proxies the real page's storage through
+ * browser.sessionStorage, and it is ASYNC like the cookie API, so it must be
+ * awaited before anything is sent.
+ *
+ * Reads and writes the same `mm_sid` key the beacon uses, in the same format,
+ * so whichever of the two runs first defines the session and the other joins it.
+ */
+let _sidPromise = null;
+function sessionId() {
+  if (_sidPromise) return _sidPromise;
+  _sidPromise = (async () => {
+    try {
+      const ss = BROWSER && BROWSER.sessionStorage;
+      if (!ss) return null;
+      const existing = await ss.getItem('mm_sid');
+      if (existing) return String(existing);
+      const fresh = 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4);
+      try { await ss.setItem('mm_sid', fresh); } catch (e) { /* read-only is still usable */ }
+      return fresh;
+    } catch (e) { return null; }
+  })();
+  return _sidPromise;
+}
+
+/**
+ * Identity, kept WARM.
+ *
+ * send() used to await readCookies() + sessionId() before it posted anything,
+ * and both are cross-frame round-trips into the storefront - one PER cookie,
+ * seventeen of them. That is fine while the shopper is standing still. It is
+ * fatal on the purchase, which fires exactly as the browser leaves: a checkout
+ * app that redirects immediately tears the sandbox down before those promises
+ * resolve, so post() is never reached and the sendBeacon written for precisely
+ * this moment never runs.
+ *
+ * Measured on GirOrganic: BeginCheckoutSF landed 372 times in 14 days while
+ * PurchaseSF landed 47 times against 1,026 Shopflo orders. The subscription was
+ * never the problem - the await in front of it was.
+ *
+ * Identity barely changes within a visit, so it is read once up front and
+ * refreshed by every event that CAN afford to wait. The purchase then sends
+ * immediately with what is already known.
+ */
+let _ckCache = null;
+let _sidCache = null;
+
+function warmIdentity() {
+  try {
+    readCookies().then((c) => { if (c && Object.keys(c).length) _ckCache = c; }).catch(() => {});
+    sessionId().then((v) => { if (v) _sidCache = v; }).catch(() => {});
+  } catch (e) { /* warming is best-effort, never a reason to fail */ }
+}
+warmIdentity();
+
+function money(m) {
+  if (!m) return null;
+  return { amount: Number(m.amount) || 0, currency: m.currencyCode || null };
+}
+
+function lineItem(li) {
+  // Shopify's Web Pixel CartLine exposes the variant as `merchandise`; `variant`
+  // is what the older storefront shape used. Reading only `variant` meant every
+  // product_added_to_cart arrived with an all-null item - 418 of GirOrganic's
+  // 1,545, which is a cart-abandonment message that cannot name what was left
+  // behind. Accept both rather than pick, since a store can emit either.
+  const v = li && (li.merchandise || li.variant);
+  const p = v && v.product;
+  return {
+    // SKU is emitted under its OWN name as well as folded into item_id.
+    // productIds.js reads it.sku for auto, sku, catalog_sku and handle modes,
+    // and this mapper never emitted that key - so a store whose Meta catalog is
+    // keyed by SKU had every pixel conversion sent with the product id instead,
+    // matching nothing. Nothing errors when that happens: Dynamic Product Ads
+    // and product-level ROAS just quietly stop working, which is the exact
+    // failure that service exists to prevent.
+    sku: (v && v.sku) || null,
+    item_id: (v && v.sku) || (p && p.id) || (v && v.id) || null,
+    item_name: (p && p.title) || (v && v.title) || null,
+    item_variant: (v && v.title) || null,
+    item_brand: (p && p.vendor) || null,
+    item_category: (p && p.type) || null,
+    price: v && v.price ? Number(v.price.amount) || 0 : null,
+    quantity: Number(li.quantity) || 1,
+    product_id: p && p.id ? String(p.id) : null,
+    variant_id: v && v.id ? String(v.id) : null,
+    // The canonical name the catalog/id resolvers read first; variant_id above
+    // stays for anything on the legacy name. split('/') strips a gid:// prefix
+    // on stores where the pixel hands out the GraphQL id instead of the number.
+    item_variant_id: v && v.id ? String(v.id).split('/').pop() : null,
+  };
+}
+
+// Which 1-click checkout this store runs ('' = Shopify's own). Substituted
+// server-side from ?checkout=. Declared here because send() consults it.
+const CHECKOUT_APP = "gokwik";
+
+// A short hash of this file, stamped in server-side and sent on every event.
+//
+// A pasted pixel is a COPY: once it is in a store's admin it is frozen, and
+// there is no way to ask a Shopify store which version it is running. So after
+// shipping a pixel change nobody could tell which stores had actually re-pasted
+// and which were quietly still on the old one - the difference between "the fix
+// is live" and "the fix is live nowhere". Now one query answers it.
+const PIXEL_BUILD = "4fe70195";
+
+// BOTH listeners always run. A store with a 1-click checkout is not a store
+// where everyone uses it: some shoppers land in Shopify's own checkout (a
+// market the app does not cover, a payment method it does not take, the app
+// failing to load), and on a mixed store that traffic is real revenue.
+//
+// This block used to silence Shopify's checkout events whenever an app was
+// named. The cost was invisible and severe: a shopper who went through
+// Shopify's own checkout produced no begin_checkout and NO PURCHASE BEACON -
+// their order still arrived from the orders webhook, but stripped of the
+// cookies that beacon carries, so it landed unattributable.
+//
+// So nothing is suppressed here any more. Both sources send, each tagged with
+// its origin, and the SERVER collapses a step that arrives twice for the same
+// visitor - keeping the checkout app's version, which carries identity and
+// coupon that Shopify's does not. The browser cannot do this itself: Shopify's
+// checkout_started fires BEFORE the app's equivalent, so at the moment it
+// arrives there is no way to know whether a richer one is coming.
+//
+// Purchase needs no such rule. It does not live in commerce_events at all - it
+// goes to the order pipeline, which already reconciles the same sale across
+// sources by transaction id and merges their cookies. Two senders there is a
+// gain, not a duplicate.
+
+// Pull the page context off the EVENT, never off document - see the header.
+function pageOf(event) {
+  const d = (event && event.context && event.context.document) || {};
+  const loc = d.location || {};
+  return {
+    page_location: loc.href || null,
+    page_referrer: d.referrer || null,
+    page_title: d.title || null,
+  };
+}
+
+// checkout_completed fires as the browser is leaving, so a normal fetch can be
+// cancelled mid-flight. sendBeacon survives the unload; fetch with keepalive is
+// the fallback where it is unavailable.
+function post(payload, url) {
+  const target = url || ENDPOINT;
+  const body = JSON.stringify(payload);
+  try {
+    if (navigator.sendBeacon) {
+      // text/plain, deliberately: it makes the beacon a CORS "simple request"
+      // (no preflight), so it is DELIVERED even from Shopify's sandboxed pixel
+      // (Origin: null). An application/json blob triggers a credentialed
+      // preflighted request, which browsers refused - queued true, sent never.
+      // The API parses JSON bodies under text/plain for exactly this reason.
+      const ok = navigator.sendBeacon(target, new Blob([body], { type: 'text/plain;charset=UTF-8' }));
+      if (ok) return;
+    }
+  } catch (e) { /* fall through */ }
+  try {
+    fetch(target, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body, keepalive: true, credentials: 'omit',
+    });
+  } catch (e) { /* never let tracking break a checkout */ }
+}
+
+async function send(shopifyName, event, extra) {
+  try {
+    // Respect the shopper's choice. analyticsProcessingAllowed() is false when
+    // they declined, and in that case we send nothing at all.
+    try {
+      if (PRIVACY && typeof PRIVACY.analyticsProcessingAllowed === 'function' && !PRIVACY.analyticsProcessingAllowed()) return;
+    } catch (e) { /* no privacy API on this store - continue */ }
+
+    // A purchase must not wait for a round-trip it may not survive. Every
+    // other event can, and its result refreshes the cache the purchase uses.
+    // An order that arrives with fewer cookies is still an order; an order
+    // that never arrives is revenue nobody can see.
+    const mapped = NAMES[shopifyName] || shopifyName;
+    let cookies; let sid;
+    if (mapped === 'purchase' && (_ckCache || _sidCache)) {
+      cookies = _ckCache || {};
+      sid = _sidCache || null;
+    } else {
+      const settle = (pr, fallback) => Promise.race([
+        pr.catch(() => fallback),
+        new Promise((r) => setTimeout(() => r(fallback), mapped === 'purchase' ? 400 : 4000)),
+      ]);
+      const pair = await Promise.all([
+        settle(readCookies(), _ckCache || {}),
+        settle(sessionId(), _sidCache || null),
+      ]);
+      cookies = pair[0] || {};
+      sid = pair[1] || null;
+      if (Object.keys(cookies).length) _ckCache = cookies;
+      if (sid) _sidCache = sid;
+    }
+    const mmId = cookies.mm_cid || cookies.mm_id || null;
+
+    // Shopify's checkout token, present on every checkout_* event and stamped
+    // on the order as checkout_token. A second bridge for the same gap, and
+    // the only one that exists when a shopper reaches checkout without ever
+    // having a cart cookie we could read.
+    let checkoutToken = null;
+    try { checkoutToken = (event.data && event.data.checkout && event.data.checkout.token) || null; } catch (_) {}
+    if (checkoutToken) cookies.checkout_token = String(checkoutToken);
+    try {
+      const ct = (event.data && event.data.cart && event.data.cart.id) || null;
+      if (ct && !cookies.cart) cookies.cart = String(ct).split('/').pop();
+    } catch (_) {}
+    // <token>?key=<hmac>, URL-encoded. The hmac is Shopify's permalink
+    // signature, not the cart's identity, and the order carries the bare
+    // token - strip it so both banks hold the same string.
+    if (cookies.cart) {
+      let t = String(cookies.cart);
+      if (t.indexOf('%3F') > -1 || t.indexOf('%3f') > -1) { try { t = decodeURIComponent(t); } catch (_) {} }
+      cookies.cart = t.split('?')[0].split('&')[0];
+    }
+
+    post(Object.assign({
+      event_name: mapped,
+      session_id: sid,
+      // Shopify's own id, so a retry or a double-fire is deduped rather than
+      // counted twice.
+      event_id: event.id || null,
+      mm_id: mmId,
+      cookies,
+      ts: event.timestamp || new Date().toISOString(),
+      source: 'shopify_pixel',
+      pixel_build: PIXEL_BUILD,
+    }, pageOf(event), extra || {}));
+  } catch (e) { /* never let tracking break a checkout */ }
+}
+
+// ── attribution sweeps: the cookies that arrive AFTER we do ─────────────────
+//
+// Measured on a live store over 30 days: 70% of all commerce events fire
+// within one second of the visit starting, and only 13.4% of those carry
+// Meta's _fbp. By three seconds it is 46.6%, by ten 55%. The cookie is not
+// missing - it has not been written yet. Meta's pixel, GA4 and Google's
+// conversion linker all set theirs asynchronously and none of them wait for us.
+//
+// So sweep: re-read the cookie jar at 3, 5, 7 and 10 seconds and post anything
+// NEW to its own endpoint. Never a second commerce event and never a second
+// page view - that would double-count the funnel this product exists to
+// measure. Cookies only, to a route that does nothing but fill gaps.
+//
+// This runs in the SANDBOX, which matters on checkout domains. Shopflo, GoKwik
+// and Pragma replace the storefront checkout, so the theme beacon is not on the
+// page at all - but Shopify's pixel still fires there. On those stores this is
+// the only thing capturing late cookies through checkout.
+const ATTR_AT_MS = [3000, 5000, 7000, 10000];
+// What the jar already held when we started. Without this baseline the first
+// sweep reports every cookie as newly arrived and re-sends the whole jar - the
+// opposite of the point, which is to carry ONLY what landed after us.
+const attrSeen = Object.create(null);
+let attrBaselined = false;
+let attrSweepArmed = false;
+
+async function attrBaseline() {
+  if (attrBaselined) return;
+  attrBaselined = true;
+  try {
+    const now = await readCookies();
+    for (const k in now) if (now[k]) attrSeen[k] = now[k];
+  } catch (e) { /* an unreadable jar just means everything later looks new */ }
+}
+
+async function attrSweep(reason) {
+  try {
+    const now = await readCookies();
+    const gained = {};
+    for (const k in now) {
+      if (!now[k] || attrSeen[k]) continue;
+      gained[k] = now[k];
+    }
+    // The visitor id itself is never "gained" - it is how the server finds the
+    // row to fill, so it must be sent even when we have sent it before.
+    const mmId = now.mm_cid || now.mm_id || attrSeen.mm_cid || attrSeen.mm_id || null;
+    for (const k in now) if (now[k]) attrSeen[k] = now[k];
+    if (!mmId) return;                       // nothing to attach the cookies to
+    const keys = Object.keys(gained);
+    if (!keys.length) return;                // nothing new; a quiet page costs nothing
+    // Refresh the cache the purchase path reads, so a checkout that happens
+    // moments later inherits what this sweep just found.
+    _ckCache = Object.assign({}, _ckCache || {}, now);
+    post({ id: mmId, session_id: _sidCache || null, reason: reason || 'pixel-sweep', cookies: gained },
+      ATTR_ENDPOINT);
+  } catch (e) { /* never let tracking break a page */ }
+}
+
+// Armed once per page. Shopify fires page_viewed on every navigation including
+// each checkout step, so re-arming there covers the whole funnel without a
+// timer per event.
+function armAttrSweeps(reason) {
+  if (attrSweepArmed) return;
+  attrSweepArmed = true;
+  // Baseline first, then sweep. Both are fire-and-forget; a sweep that runs
+  // before the baseline resolves simply finds nothing new on its next pass.
+  attrBaseline();
+  ATTR_AT_MS.forEach((ms) => setTimeout(() => attrSweep(`${reason}+${ms}ms`), ms));
+}
+
+analytics.subscribe('page_viewed', () => {
+  // A new page is a new race, but the baseline carries over: a cookie that
+  // existed on the previous page is not news on this one.
+  attrSweepArmed = false;
+  armAttrSweeps('page_viewed');
+});
+// Some themes and every headless checkout can run a long time without another
+// page_viewed, so arm once at load too.
+armAttrSweeps('pixel-init');
+
+// ── page views (stopgap only, see SEND_PAGE_VIEWS) ──────────────────────────
+// The URL comes off event.context.document, never document.location - in here
+// that would be the pixel's own iframe, and every page would be recorded as the
+// same meaningless path.
+if (SEND_PAGE_VIEWS) {
+  analytics.subscribe('page_viewed', async (event) => {
+    try {
+      const [cookies, sid] = await Promise.all([readCookies(), sessionId()]);
+      const mmId = cookies.mm_cid || cookies.mm_id || null;
+      // No visitor id means the theme beacon never ran on any page this session,
+      // so there is nothing to attach the view to. Minting one here would create
+      // a second identity for a shopper the beacon may name differently later.
+      if (!mmId) return;
+      const d = (event.context && event.context.document) || {};
+      const loc = d.location || {};
+      const path = (loc.pathname || '') + (loc.search || '');
+      if (!path) return;
+      post({
+        // Shopify's event is named page_viewed; we emit GA4's page_view, the
+        // same way product_viewed goes out as view_item. The subscription name
+        // is Shopify's and cannot change - the name we SEND is ours.
+        event_name: 'page_view',
+        id: mmId,
+        mm_id: mmId,
+        cookies,
+        views: [{
+          path,
+          host: loc.hostname || null,
+          title: d.title || null,
+          referrer: d.referrer || null,
+          session_id: sid,
+          ts: event.timestamp || new Date().toISOString(),
+        }],
+      }, PV_ENDPOINT);
+    } catch (e) { /* never let tracking break a page */ }
+  });
+}
+
+// ── product / browse ────────────────────────────────────────────────────────
+analytics.subscribe('product_viewed', async (event) => {
+  const v = event.data && event.data.productVariant;
+  if (!v) return;
+  const m = money(v.price);
+  await send('product_viewed', event, {
+    items: [lineItem({ variant: v, quantity: 1 })],
+    value: m ? m.amount : null,
+    currency: m ? m.currency : null,
+  });
+});
+
+analytics.subscribe('collection_viewed', async (event) => {
+  const c = event.data && event.data.collection;
+  await send('collection_viewed', event, {
+    item_list_id: c && c.id ? String(c.id) : null,
+    item_list_name: (c && c.title) || null,
+    items: (c && c.productVariants ? c.productVariants : []).slice(0, 20)
+      .map((v) => lineItem({ variant: v, quantity: 1 })),
+  });
+});
+
+analytics.subscribe('search_submitted', async (event) => {
+  const s = event.data && event.data.searchResult;
+  await send('search_submitted', event, { search_term: (s && s.query) || null });
+});
+
+// ── cart ────────────────────────────────────────────────────────────────────
+analytics.subscribe('product_added_to_cart', async (event) => {
+  const li = event.data && event.data.cartLine;
+  if (!li) return;
+  const m = money(li.cost && li.cost.totalAmount);
+  await send('product_added_to_cart', event, {
+    items: [lineItem(li)],
+    value: m ? m.amount : null,
+    currency: m ? m.currency : null,
+  });
+});
+
+analytics.subscribe('cart_viewed', async (event) => {
+  const cart = event.data && event.data.cart;
+  const m = money(cart && cart.cost && cart.cost.totalAmount);
+  await send('cart_viewed', event, {
+    items: (cart && cart.lines ? cart.lines : []).map(lineItem),
+    value: m ? m.amount : null,
+    currency: m ? m.currency : null,
+  });
+});
+
+// ── checkout ────────────────────────────────────────────────────────────────
+// The checkout events carry the email and phone the shopper typed. Sending them
+// links this browsing session to a person BEFORE the thank-you page, which is
+// what lets a purchase in a fresh context still find the session that caused it.
+function checkoutExtras(co) {
+  if (!co) return {};
+  const m = money(co.totalPrice);
+  return {
+    items: (co.lineItems || []).map(lineItem),
+    value: m ? m.amount : null,
+    currency: m ? m.currency : (co.currencyCode || null),
+    coupon: (co.discountApplications || []).map((d) => d.title).filter(Boolean).join(',') || null,
+    user_data: {
+      email: co.email || null,
+      phone: co.phone || null,
+    },
+  };
+}
+
+analytics.subscribe('checkout_started', async (event) => {
+  await send('checkout_started', event, checkoutExtras(event.data && event.data.checkout));
+});
+
+analytics.subscribe('checkout_contact_info_submitted', async (event) => {
+  await send('checkout_contact_info_submitted', event, checkoutExtras(event.data && event.data.checkout));
+});
+
+analytics.subscribe('checkout_address_info_submitted', async (event) => {
+  await send('checkout_address_info_submitted', event, checkoutExtras(event.data && event.data.checkout));
+});
+
+analytics.subscribe('checkout_shipping_info_submitted', async (event) => {
+  await send('checkout_shipping_info_submitted', event, checkoutExtras(event.data && event.data.checkout));
+});
+
+analytics.subscribe('payment_info_submitted', async (event) => {
+  await send('payment_info_submitted', event, checkoutExtras(event.data && event.data.checkout));
+});
+
+analytics.subscribe('checkout_completed', async (event) => {
+  const co = event.data && event.data.checkout;
+  await send('checkout_completed', event, Object.assign(checkoutExtras(co), {
+    // transaction_id must be the Shopify order id, because that is what the
+    // orders/create webhook arrives with. It is the join that lets the two
+    // halves of the same sale reconcile into one order rather than two.
+    transaction_id: (co && (co.order && co.order.id)) || (co && co.token) || null,
+    order_number: (co && co.order && co.order.id) ? String(co.order.id) : null,
+    shipping: co && co.shippingLine && co.shippingLine.price ? Number(co.shippingLine.price.amount) || 0 : null,
+    tax: co && co.totalTax ? Number(co.totalTax.amount) || 0 : null,
+  }));
+});
+
+// ─── Checkout apps (1-click) ─────────────────────────────────────────────────
+// A store running Shopflo, GoKwik, Pragma, Fastrr or Razorpay Magic replaces
+// Shopify's checkout, so Shopify's checkout_* and checkout_completed events
+// NEVER FIRE - and on GirOrganic that means the browser has recorded zero
+// purchases against 2,201 real orders. Everything from cart backwards is still
+// Shopify's; everything from checkout forwards belongs to the app, which
+// publishes its own events into this same Customer Events API.
+//
+// CHECKOUT_APP is declared near send(), which consults it to suppress the
+// Shopify checkout events this app supersedes.
+
+// Money and counts arrive as DISPLAY STRINGS from some checkout apps -
+// Shopflo sends order_total as "2,998". Number() on that is NaN, which lands as
+// a zero-value purchase: the order is counted, the revenue is not. Strip the
+// grouping separators and any currency symbol before converting.
+function num(v) {
+  if (v == null || v === '') return 0;
+  const n = Number(String(v).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// Read a value that may sit under either of two wrappers.
+//
+// Pragma's own integration is internally inconsistent: it guards on
+// `customData.event_payload.data.data` and then reads values from
+// `customData.data.data` - without the event_payload. Only one can be right,
+// and if it is the former then every currency, value and email in their GTM
+// setup has been silently undefined. Rather than pick, try both and use
+// whichever resolves.
+function pick(root, path) {
+  for (const base of [root && root.event_payload, root]) {
+    let cur = base;
+    for (const k of path) {
+      if (cur == null) break;
+      cur = cur[k];
+    }
+    if (cur != null && cur !== '') return cur;
+  }
+  return null;
+}
+
+// GoKwik and Pragma publish the SAME payload - the same Products array, the
+// same "Original Cart Price", the same customData.data.data nesting. One
+// handler serves both; only the channel name and the step names differ.
+function ckItems(d) {
+  const rows = (d && d.Products) || [];
+  if (!Array.isArray(rows)) return [];
+  return rows.map((p) => ({
+    item_id: p['Product ID'] != null ? String(p['Product ID']) : null,
+    // GoKwik's own code calls .toString() on this without a guard, so a single
+    // line with no variant id throws and takes the whole handler - and the
+    // event - with it. Guarded here.
+    item_variant: p['Product Variant Id'] != null ? String(p['Product Variant Id']) : null,
+    item_name: p['Product Name'] || null,
+    price: num(p['Product Price']),
+    quantity: num(p['Product Quantity']) || 1,
+  }));
+}
+
+// The identity these checkouts carry on every step - email, phone, name and
+// full address. Shopify's native events carry none of it, so on these stores
+// the checkout steps are the best identity signal in the whole funnel: they are
+// what turns an anonymous abandoned cart into someone a playbook can message,
+// and what lifts the match quality of every conversion sent onward.
+function ckIdentity(d) {
+  if (!d) return {};
+  return {
+    email: d.Email || null,
+    phone: d['Mobile Number'] || null,
+    first_name: d['First Name'] || null,
+    last_name: d['Last Name'] || null,
+    address: d['Full Address'] || null,
+    city: d.City || null,
+    state: d.State || null,
+    country: d.Country || null,
+    zip: d.Pincode != null ? String(d.Pincode) : null,
+  };
+}
+
+// Each app's channel and its step names. The canonical name on the right is the
+// step the partner event most nearly IS, so the app's version and Shopify's
+// land under one name and the server can collapse them when both arrive.
+//
+// Pragma reports reaching the address step and submitting it separately, which
+// its own integration collapses into one name; they are different signals and
+// are kept apart here. GoKwik reports only the first, and never reports a
+// shipping-method choice, so that step stays Shopify's on a GoKwik store.
+const APP_EVENTS = {
+  gokwik: {
+    channel: 'gokwik_events',
+    names: {
+      Started_Checkout_GK: 'begin_checkout',
+      Address_Step_Reached_GK: 'add_address_info',
+      Payment_Method_Selected_GK: 'add_payment_info',
+      Order_Placed_GK: 'purchase',
+    },
+  },
+};
+
+const APP_SPEC = APP_EVENTS[CHECKOUT_APP];
+if (APP_SPEC) {
+  // ONE subscription, switched on the payload's own name. Both integrations
+  // register a separate subscriber per step and re-filter inside each, so every
+  // event is walked four or five times to be used once.
+  analytics.subscribe(APP_SPEC.channel, async (event) => {
+    try {
+      const cd = event && event.customData;
+      const ours = APP_SPEC.names[pick(cd, ['name'])];
+      if (!ours) return;
+
+      const d = pick(cd, ['data', 'data']);
+      const items = ckItems(d);
+
+      const extra = Object.assign({
+        value: num(pick(cd, ['data', 'data', 'Original Cart Price'])),
+        currency: pick(cd, ['data', 'data', 'currency']) || null,
+        coupon: pick(cd, ['data', 'data', 'Coupon Code']) || null,
+        items,
+        num_items: items.reduce((a, i) => a + (num(i.quantity) || 0), 0),
+        // Which checkout produced this, kept beside the canonical name so a
+        // report never has to know the store's checkout to read its funnel.
+        checkout_app: CHECKOUT_APP,
+      }, ckIdentity(d));
+
+      if (ours === 'add_payment_info') extra.payment_type = pick(cd, ['data', 'data', 'Payment method']) || null;
+
+      if (ours === 'purchase') {
+        // The Shopify order id is the join to the orders/create webhook - the
+        // two halves of one sale reconcile on it, or the same sale lands twice.
+        const orderNo = pick(cd, ['data', 'data', 'Order Number']);
+        const orderId = pick(cd, ['data', 'data', 'order_id']);
+        extra.transaction_id = orderNo != null ? String(orderNo) : (orderId != null ? String(orderId) : null);
+        extra.order_number = orderNo != null ? String(orderNo) : null;
+        extra.tax = num(pick(cd, ['data', 'data', 'tax'])) || null;
+        extra.shipping = num(pick(cd, ['data', 'data', 'shipping_price'])) || null;
+      }
+
+      // Bypasses NAMES: `ours` is already our canonical name, so it is passed
+      // through untouched rather than looked up as a Shopify event.
+      await send(ours, event, extra);
+    } catch (e) { /* never let tracking break a checkout */ }
+  });
+}
+
+// ─── Discovery: what else is this store actually publishing? ────────────────
+//
+// Every checkout-app handler above subscribes to names we were TOLD about. When
+// a store runs an app we have not met, or the app renames an event, nothing
+// fires and NOTHING SAYS SO. Dnine ran Pragma for months with zero purchases
+// reported by the browser, because the pasted pixel carried no block for it at
+// all - and the store looked instrumented the whole time, because every other
+// event was arriving.
+//
+// So the pixel reports the NAME of any custom event it does not handle. Names
+// only - never a payload, never a value - once per name per session, hard
+// capped. That is enough to answer "what does this checkout actually emit?"
+// from live traffic instead of from a partner's documentation, and it is how
+// the next checkout app gets supported in an afternoon rather than a quarter.
+const STANDARD = [
+  'page_viewed', 'product_viewed', 'collection_viewed', 'search_submitted',
+  'product_added_to_cart', 'product_removed_from_cart', 'cart_viewed',
+  'checkout_started', 'checkout_completed', 'checkout_address_info_submitted',
+  'checkout_contact_info_submitted', 'checkout_shipping_info_submitted',
+  'payment_info_submitted', 'clicked', 'form_submitted', 'input_blurred',
+  'input_changed', 'input_focused', 'ui_extension_errored', 'alert_displayed',
+  'cart_page_viewed', 'checkout_shipping_info_viewed', 'all_events', 'all_standard_events',
+];
+
+try {
+  const handled = {};
+  STANDARD.forEach((n) => { handled[n] = 1; });
+  Object.keys(NAMES).forEach((n) => { handled[n] = 1; });
+  if (typeof APP_SPEC !== 'undefined' && APP_SPEC) {
+    handled[APP_SPEC.channel] = 1;
+    Object.keys(APP_SPEC.names).forEach((n) => { handled[n] = 1; });
+  }
+  ['BeginCheckoutSF', 'PurchaseSF'].forEach((n) => { handled[n] = 1; });
+  ['Initiate_CheckoutSR', 'Add_ShippingInfoSR', 'Add_PaymentInfoSR', 'PurchaseSR'].forEach((n) => { handled[n] = 1; });
+
+  const seen = {};
+  let reported = 0;
+  analytics.subscribe('all_events', (event) => {
+    try {
+      const n = event && event.name;
+      if (!n || handled[n] || seen[n] || reported >= 10) return;
+      seen[n] = 1; reported += 1;
+      // Deliberately NOT through send(): this carries no identity, no cookies
+      // and no session read, so it cannot be delayed by a frame that is going
+      // away and cannot leak anything about the shopper.
+      post({
+        event_name: 'mm_unhandled_event',
+        unhandled_name: String(n).slice(0, 80),
+        checkout_app: CHECKOUT_APP || null,
+        pixel_build: PIXEL_BUILD,
+        source: 'shopify_pixel',
+        ts: new Date().toISOString(),
+      });
+    } catch (e) { /* discovery must never affect the store */ }
+  });
+} catch (e) { /* all_events unsupported on this store - nothing else changes */ }
+});})(self.webPixelsManager.createShopifyExtend('143917286', 'custom'));
+
+</script>
+
+  </head>
+  <body>
+
+</body></html>

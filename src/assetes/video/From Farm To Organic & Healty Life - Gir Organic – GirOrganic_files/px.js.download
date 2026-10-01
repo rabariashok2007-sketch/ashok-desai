@@ -1,0 +1,2049 @@
+(function(){
+  var K="mmtrk_e531a7c305c176aeae16c3f81deb7a992a83", B='https://bees.girorganic.com/c', T='https://bees.girorganic.com/t';
+  try{window.__MM_OBSERVER__=true;}catch(e){}
+  function ck(n){var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?decodeURIComponent(m.pop()):'';}
+  // Cross-subdomain cookie. weightworld.fi and www.weightworld.fi are separate
+  // localStorage origins, so a store that redirects apex -> www used to mint a
+  // SECOND visitor id mid-journey and orphan everything captured on the first.
+  // Write the cookie as wide as the browser will accept, then CHECK.
+  //
+  // The old version always used the last two labels, which is wrong wherever
+  // those two are a public suffix - .myshopify.com, .co.uk, .com.au, .co.in.
+  // Browsers reject a cookie scoped to a public suffix silently: no error, no
+  // cookie, and mm_cid simply never exists. Every Shopify dev store hit this,
+  // and so does any UK or Australian store on a www subdomain.
+  //
+  // Verifying beats shipping a public-suffix list: read it back, and if the wide
+  // write did not stick, fall back to a host-only cookie. Host-only loses
+  // apex/www sharing, which is a real cost - but far smaller than no cookie.
+  function setCk2(n,v,days){try{
+    var d=new Date();d.setTime(d.getTime()+days*86400000);
+    var base=n+'='+encodeURIComponent(v)+'; expires='+d.toUTCString()+'; path=/; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');
+    var h=location.hostname,l=h.split('.');
+    if(l.length>2&&!/^\d+(\.\d+){3}$/.test(h)){
+      document.cookie=base+'; domain=.'+l.slice(-2).join('.');
+      if(ck(n)===v)return;                       // wide write accepted
+      // Try one label further out before giving up: shop.example.co.uk needs
+      // .example.co.uk, which is three labels, not two.
+      if(l.length>3){document.cookie=base+'; domain=.'+l.slice(-3).join('.');if(ck(n)===v)return;}
+    }
+    document.cookie=base;                        // host-only, always accepted
+  }catch(e){}}
+  // Cookie FIRST: it is the only store shared across apex/www/checkout. Falling
+  // back to it after localStorage would still mint a new id on a fresh origin.
+  // ── Cross-domain identity ────────────────────────────────────────────────
+  // A cookie cannot span registrable domains, so a visitor moving from brand.com
+  // to brand.co.uk becomes two people and the second one has no history. The
+  // domains the tenant declared are exactly the set they should stay one person
+  // across, so the id rides the link.
+  //
+  // Adopted ONLY when the referrer is one of those same domains. Without that
+  // check any site could hand us ?mm_id= and take over an identity - and an
+  // identity graph that accepts strangers' ids is worse than one that forgets.
+  var OWNED=["girorganic.com","girorganic-com.myshopify.com"];
+  function owned(h){h=String(h||'').toLowerCase().replace(/^www\./,'');
+    return OWNED.some(function(a){a=String(a).toLowerCase().replace(/^www\./,'');return h===a||h.slice(-(a.length+1))==='.'+a;});}
+  // The product was Measure Marketer and is Cookiebees, so a visitor may carry
+  // mm_cid or cb_cid. We READ both and WRITE the one this workspace is set to.
+  // NEW is first so a migrated workspace prefers its own name.
+  var CKN="mm"+'_cid', CKALL=['cb_cid','mm_cid'];
+  var BLOBN="mm"+'_tracking', BLOBALL=['cb_tracking','mm_tracking'];
+  // The blob is read from either name and rewritten under this workspace's, so
+  // an existing visitor's captured acquisition context carries over untouched.
+  // The blob minus the fields that move on their own, so "did anything real
+  // change" can be asked without last_seen_at answering yes every time.
+  function stable(raw){try{var o=JSON.parse(decodeURIComponent(raw||'')||'{}');
+    delete o.last_seen_at;return JSON.stringify(o);}catch(e){return String(raw||'');}}
+  function anyBlob(){for(var i=0;i<BLOBALL.length;i++){var v=ck(BLOBALL[i]);if(v)return v;
+    try{var l=localStorage.getItem(BLOBALL[i]);if(l)return l;}catch(e){}}return '';}
+  function anyCk(){for(var i=0;i<CKALL.length;i++){var v=ck(CKALL[i]);if(v)return v;}return '';}
+  function anyLs(){for(var i=0;i<CKALL.length;i++){try{var v=localStorage.getItem(CKALL[i]);if(v)return v;}catch(e){}}return '';}
+  // Carry the SAME VALUE onto the new name. This is the whole safety of the
+  // rename: the id never changes, so a returning visitor is not a new person -
+  // nothing splits, no attribution window resets. They arrive on the old name
+  // once and leave on the new one.
+  // Write the COOKIE only when it is not already exactly this value.
+  //
+  // This matters more than it looks. Every request through a first-party path
+  // re-issues the id as a SERVER-set cookie, which is the only thing Safari's
+  // seven-day cap does not apply to. Rewriting it here on every page load
+  // replaces that with a script-set cookie and hands the cap straight back -
+  // silently, because the value and the expiry both look right in devtools.
+  // localStorage is always updated: it is not a cookie and ITP does not care.
+  function keep(v){try{localStorage.setItem(CKN,v);}catch(e){}
+    if(ck(CKN)!==v)setCk2(CKN,v,400);
+    return v;}
+  function adopted(){try{
+    if(!OWNED.length)return null;
+    var sp=new URL(location.href).searchParams, q=sp.get('cb_id')||sp.get('mm_id');
+    if(!q||!/^(mm|cb)c_[a-z0-9]{6,}$/i.test(q))return null;
+    var r=document.referrer?new URL(document.referrer).hostname:'';
+    return owned(r)?q:null;
+  }catch(e){return null;}}
+
+  function id(){
+    var linked=adopted();
+    if(linked)return keep(linked);
+    var c=anyCk();if(c)return keep(c);
+    var v=anyLs();if(v)return keep(v);
+    var n="mm"+'c_'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+    return keep(n);}
+
+  // Stamp the id onto links pointing at another domain we own. Done at click
+  // time rather than on load, because a page can add links after render and
+  // rewriting every href up front would also rewrite ones that never get used.
+  function decorate(e){try{
+    if(!OWNED.length)return;
+    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;
+    if(!a)return;
+    var u=new URL(a.href,location.href);
+    if(u.hostname===location.hostname)return;      // same site, cookie covers it
+    if(!owned(u.hostname))return;                  // not ours, never leak the id
+    if(u.searchParams.get('cb_id')||u.searchParams.get('mm_id'))return;
+    u.searchParams.set("mm"+'_id',MM);
+    a.href=u.toString();
+  }catch(_e){}}
+  try{document.addEventListener('click',decorate,true);
+      document.addEventListener('auxclick',decorate,true);}catch(_e){}
+  function sid(){var K="mm"+'_sid';try{var s=sessionStorage.getItem(K)||sessionStorage.getItem('mm_sid')||sessionStorage.getItem('cb_sid');if(s)return s;}catch(e){}var n='s_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    try{sessionStorage.setItem(K,n);}catch(e){}return n;}
+  // Our neutral aliases, folded to canonical names the instant they are read.
+  // Because the vocabulary is FIXED rather than per tenant, this map is a
+  // compile-time constant: folding costs nothing, needs no round trip, and
+  // mm_tracking therefore holds canonical keys from the first millisecond. That
+  // matters more here than anywhere else, because first_* below freezes ONCE -
+  // read the URL without knowing about mm_gc and first_gclid is empty forever.
+  var AL={"mm_source":"utm_source","mm_medium":"utm_medium","mm_campaign":"utm_campaign","mm_term":"utm_term","mm_content":"utm_content","mm_gc":"gclid","mm_gb":"gbraid","mm_wb":"wbraid","mm_ms":"msclkid","mm_tt":"ttclid","mm_li":"li_fat_id","mm_tw":"twclid","mm_fb":"fbclid","cb_source":"utm_source","cb_medium":"utm_medium","cb_campaign":"utm_campaign","cb_term":"utm_term","cb_content":"utm_content","cb_gc":"gclid","cb_gb":"gbraid","cb_wb":"wbraid","cb_ms":"msclkid","cb_tt":"ttclid","cb_li":"li_fat_id","cb_tw":"twclid","cb_fb":"fbclid"};
+  // The entry URL, frozen at parse time.
+  //
+  // Shopify themes and several common apps strip tracking parameters from the
+  // address bar with history.replaceState shortly after load. Reading
+  // location.href later therefore returns a CLEANED url, and the gclid, gbraid,
+  // gad_source and utms that justify a paid classification are simply gone -
+  // which is exactly how a real Google Shopping order came to look like Direct,
+  // its parameters surviving only by luck in the NEXT page's referrer.
+  //
+  // This runs while the script is being parsed, before any of that can happen,
+  // so the entry query is captured whatever the theme does afterwards.
+  var HREF0=(function(){try{return location.href;}catch(e){return '';}})();
+  function cookies(){var u=new URL(HREF0||location.href),d={landing_page_url:HREF0||location.href,referrer:document.referrer||'',client_user_agent:navigator.userAgent};
+    ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','gbraid','wbraid','fbclid','msclkid','ttclid','oppref','gad_source','gad_campaignid','mm_rc'].forEach(function(p){var v=u.searchParams.get(p);if(v)d[p]=v;});
+    // Aliases fill gaps only: a real gclid in the URL always beats mm_gc.
+    for(var a in AL){var av=u.searchParams.get(a);if(av&&!d[AL[a]])d[AL[a]]=av;}
+    // When the recovery token arrived. mm_rc rides the persisted blob, so without
+    // a timestamp a single click would credit every event for the cookie's life.
+    if(d.mm_rc)d.mm_rc_at=new Date().toISOString();
+    ['_ga','_fbp','_fbc','_gcl_aw','_gcl_dc','_gcl_gb','_gcl_ag','_gcl_au'].forEach(function(c){var v=ck(c);if(v)d[c]=v;});
+    document.cookie.split(';').forEach(function(pr){var nm=pr.split('=')[0].trim();if(/^_ga_/.test(nm)){var vv=ck(nm);if(vv)d[nm]=vv;}});
+    // SHOPIFY'S CART TOKEN - the one id that exists on both banks of the
+    // checkout gap without anyone forwarding it.
+    //
+    // It is NOT read from document.cookie: Shopify's cart cookie never reaches
+    // script (every other cookie in this function arrives; that one is 0 rows
+    // in 30 days), which is why the server's cart-token rung has been dead
+    // code. /cart.js is the storefront's own JSON and returns the same token to
+    // any script on the shop domain.
+    //
+    // It matters because it belongs to SHOPIFY, not to the checkout app. A
+    // one-click provider we have never seen still builds on the Shopify cart,
+    // so this joins their checkout to this browser with no registry entry and
+    // no cooperation from them.
+    if(CART_TOK)d.cart=CART_TOK;
+    return d;}
+  var MM=id();
+  // Read once per page, kept for the session. Same-origin, a few hundred bytes,
+  // and it fails silently on a storefront that is not Shopify.
+  var CART_TOK='';
+  try{CART_TOK=sessionStorage.getItem('cb_cart_tok')||'';}catch(e){}
+  function readCartTok(){try{
+    
+    fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null;}).then(function(c){
+      if(c&&c.token&&String(c.token)!==CART_TOK){
+        CART_TOK=String(c.token);
+        try{sessionStorage.setItem('cb_cart_tok',CART_TOK);}catch(e){}
+      }
+    }).catch(function(){});
+  }catch(e){}}
+  readCartTok();
+  // Cross-subdomain cookie writer (so the blob is readable on checkout
+  // subdomains). The public-suffix-aware one: the old two-label writer was
+  // silently refused on .co.uk, .com.au and *.myshopify.com, so those stores
+  // never had a blob cookie at all.
+  function setCk(n,v,days){setCk2(n,v,days);}
+  // First-party click cookies for platforms whose ID isn't in a _ga/_fbc-style cookie.
+  // ChatGPT Ads keeps its click id in __oppref and its browser id in __obref;
+  // stored under the bare names, and a click id in the URL (cookies()) wins.
+  function moreCookies(d){['_gid','_uetsid','_uetvid','_ttp','_scid','_epik','_pin_unauth','li_fat_id','_rdt_uuid'].forEach(function(c){var v=ck(c);if(v)d[c]=v;});
+    var ob=ck('__obref');if(ob)d.obref=ob;var op=ck('__oppref');if(op&&!d.oppref)d.oppref=op;return d;}
+  // The ONE comprehensive blob (mm_tracking): all UTMs + click IDs + pixel cookies
+  // + referrer + landing, current values merged over the persisted first-touch,
+  // plus first_* fields. Read THIS single cookie in GTM and send it as cookies_data.
+  function track(){var st={};try{st=JSON.parse(anyBlob()||'{}');}catch(e){}
+    // Fall back to the cross-subdomain cookie: on a fresh origin (apex -> www)
+    // localStorage is empty, and without this the click id, UTMs and mm_rc
+    // captured on the landing page are all thrown away.
+    if(!st||!st.mm_id){try{var ct=ck(BLOBN)||ck('mm_tracking')||ck('cb_tracking');if(ct){var cj=JSON.parse(ct);if(cj&&typeof cj==='object')st=cj;}}catch(e){}}
+    var f=moreCookies(cookies()),d={},k;for(k in st)d[k]=st[k];for(k in f)if(f[k])d[k]=f[k];
+    // A platform that finds its cookie missing mints a fresh one before we can
+    // put the old one back - on a Shopify store Meta's pixel loads first and
+    // wins that race every time. Copying the fresh id into our record here
+    // would lose the old one for good, so a value newer than the one we hold
+    // is treated as a re-mint after loss: our copy stays, and seedCookies
+    // writes it back over the fresh one.
+    ['_fbp','_ga'].forEach(function(k){if(reminted(k,f[k],st[k]))d[k]=st[k];});
+    // Synthesize ONLY Meta's _fbc from the URL fbclid (Meta's documented format;
+    // safe + only-if-missing so we never clobber the pixel, which reconciles it on
+    // load). We do NOT synthesize Google's _gcl_* cookies: gbraid->_gcl_gb /
+    // wbraid differ from _gcl_aw, the conversion linker owns their encoding, and
+    // Google server-side conversions use the RAW gclid/gbraid we already capture.
+    var fbid=d.first_fbclid||d.fbclid;
+    // The value is kept in our record either way; the COOKIE is Meta's, and it
+    // waits for consent like every cookie we would mint.
+    if(fbid && String(fbid).length>12 && !d._fbc){d._fbc='fb.1.'+Date.now()+'.'+fbid;if(!consentBlocked())setCk('_fbc',d._fbc,90);}
+    // Third-party identity capture - same table as the leadgen beacon
+    // (mm-tracking.template.js): each id under its OWN named key. Shopflo's
+    // localStorage ids are the join key for orders its checkout rebuilds;
+    // Clarity's ids turn an order's journey into a watchable session replay.
+    // Two templates having two copies of this list is a known debt - the
+    // capture landed in ONE beacon first and this store ran the other.
+    try{var fa=localStorage.getItem('flo-anon-id');if(fa)d.flo_anon_id=String(fa).replace(/^"|"$/g,'');
+      var fs2=localStorage.getItem('flo-analytics');if(fs2){var fo=JSON.parse(fs2);if(fo&&fo.shopifySessionId)d.flo_session_id=String(fo.shopifySessionId);}}catch(e){}
+    try{var cl=ck('_clck');if(cl)d.clarity_user_id=String(cl).split('|')[0];
+      var cs=ck('_clsk');if(cs)d.clarity_session_id=String(cs).split('|')[0];
+      if((d.clarity_user_id||d.clarity_session_id)&&!d.clarity_project_id){
+        var cts=document.querySelectorAll('script[src*="clarity.ms/tag/"]');
+        if(cts.length){var cmm=String(cts[0].src).match(/clarity\.ms\/tag\/([A-Za-z0-9]+)/);if(cmm)d.clarity_project_id=cmm[1];}}}catch(e){}
+    d.mm_id=MM;d.id=MM;d.last_seen_at=new Date().toISOString();
+    if(!d.first_touch_at){d.first_touch_at=d.last_seen_at;d.first_landing_page=d.landing_page_url;d.first_referrer=d.referrer;
+      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','gbraid','wbraid','fbclid','msclkid','ttclid','oppref','gad_source','gad_campaignid','mm_rc'].forEach(function(x){if(d[x])d['first_'+x]=d[x];});}
+    var js=JSON.stringify(d);
+    try{localStorage.setItem(BLOBN,js);}catch(e){}
+    // Same rule, one nuance: last_seen_at moves on every page load, so a plain
+    // comparison would always differ and the cookie would always be rewritten.
+    // Compare without it - if nothing that matters changed, leave the
+    // server-set cookie alone.
+    if(stable(ck(BLOBN))!==stable(js))setCk(BLOBN,js,400);
+    return d;}
+  var TRACK=track();
+
+  // ── Only a page someone can SEE is a visit ──────────────────────────────
+  // Chrome prerenders the next page a shopper might open (a search result, an
+  // ad landing page) and runs its scripts before, or without, the tab ever
+  // showing it. Our beacon fires at parse time and recorded those as visits;
+  // Meta's pixel and GA4 wait for activation, so they carried no _fbp, no
+  // _ga, no event - measured at 75% of one-page "direct" visitors with
+  // nothing else. The page view and the settle capture now wait for the page
+  // to be shown; a prerender that is never shown records nothing.
+  var WASPRE=!!document.prerendering;
+  function whenShown(fn){try{if(document.prerendering){document.addEventListener('prerenderingchange',function(){fn();},{once:true});return;}}catch(e){}fn();}
+  // ── Seed the pixel cookies, so a bounce is still a person ───────────────
+  // Polling cannot find a cookie that is never written. Measured on a live
+  // store: of one-page visitors without _fbp, only 8% ever produced ANY
+  // pixel event - Meta's fbevents.js and GA4 had not run at all when the
+  // shopper left, or were blocked. Waiting longer finds nothing.
+  //
+  // So we write them first, in the platforms' own formats, and only when
+  // they are absent. fbevents.js and gtag.js both READ their cookie before
+  // writing one and adopt what they find, which is exactly how a server-side
+  // tagging setup keeps identity: the value we mint becomes the value the
+  // platform uses, so the browser event, our conversion and the cookie all
+  // carry one id instead of three.
+  //
+  //   _fbp  fb.<subdomain index>.<created ms>.<random>      Meta, 90 days
+  //   _ga   GA1.<domain labels>.<client id>.<created s>     GA4, 2 years
+  //
+  // The subdomain index is the label count of the domain the cookie landed
+  // on: "example.com" is 1, "www.example.com" is 2 - the same arithmetic
+  // fbevents does, so it recognises ours as its own.
+  //
+  // Never an overwrite: a real cookie is always left alone. If a platform
+  // decides to replace ours anyway, the watcher below notices the value
+  // changed and sends the platform's version to supersede our seed - the
+  // stored id must be the one the platform is actually using.
+  var SEEDED={},RESTORED={};
+  try{window.__cbRestored=RESTORED;}catch(e){}
+  // When a browser id was minted, from the value itself: Meta writes
+  // fb.<n>.<millis>.<rand>[.<suffix>], Google GA1.<n>.<rand>.<seconds>.
+  function mintedAt(k,v){try{var p=String(v||'').split('.');
+    if(k==='_fbp'&&p.length>=3){var ms=parseInt(p[2],10);if(ms>0)return ms;}
+    if(k==='_ga'&&p.length>=4){var sc=parseInt(p[3],10);if(sc>0)return sc*1000;}
+  }catch(e){}return null;}
+  // The same id, allowing for the segment Meta's newer pixel appends to _fbp.
+  function sameId(cur,old){return cur===old||String(cur).indexOf(old+'.')===0;}
+  // Is the current value a fresh id minted AFTER the one we hold? Platforms
+  // never rotate these on their own, so newer-and-different means the old one
+  // was lost and replaced - the case restore exists for.
+  function reminted(k,cur,old){if(!cur||!old||sameId(cur,old))return false;
+    var a=mintedAt(k,cur),b=mintedAt(k,old);return !!(a&&b&&a>b);}
+  function rnd32(){try{var a=new Uint32Array(1);(window.crypto||window.msCrypto).getRandomValues(a);return a[0];}catch(e){return Math.floor(Math.random()*4294967294)+1;}}
+  function seedIdx(){var h=String(location.hostname||'').replace(/^www\./,'');
+    if(/^\d+(\.\d+){3}$/.test(h)||h.indexOf('.')<0)return 1;               // an IP or "localhost" has no registrable domain
+    return Math.max(1,h.split('.').length-1);}
+  function seed(n,v,days){if(ck(n))return;setCk2(n,v,days);if(ck(n)===v)SEEDED[n]=v;}
+  var SEEDON=true, MINTON=false;
+  // A consent framework that has not granted yet decides this, not us. If a
+  // CMP is on the page (IAB TCF, or Google consent mode still defaulted to
+  // denied) we leave the cookie jar alone; the platforms are not writing
+  // either, and a store in the EU must be able to prove that.
+  function consentBlocked(){try{
+    // Shopify's own Customer Privacy API is the consent tool an EU Shopify
+    // store actually runs - TCF is ad-tech's, and checking only that one
+    // would have written marketing cookies straight through a store's
+    // banner. Its absence means the store has no consent gate.
+    var sp=window.Shopify&&window.Shopify.customerPrivacy;
+    if(sp){try{
+      if(typeof sp.analyticsProcessingAllowed==='function'&&!sp.analyticsProcessingAllowed())return true;
+      if(typeof sp.marketingAllowed==='function'&&!sp.marketingAllowed())return true;
+    }catch(e){}}
+    if(window.__tcfapi&&!window.__mmTcfOk)return true;
+    // Google consent mode, as it stands NOW: 'default' then any 'update's,
+    // merged oldest to newest. Reading newest-first and stopping at the first
+    // 'denied' kept every visitor who accepted the banner blocked for good,
+    // because the default before their 'granted' said denied.
+    var dl=window.dataLayer,cs={};
+    if(dl&&dl.length){for(var i=0;i<dl.length;i++){var a=dl[i];
+      if(a&&a[0]==='consent'&&a[2]){if(a[2].analytics_storage)cs.a=a[2].analytics_storage;if(a[2].ad_storage)cs.d=a[2].ad_storage;}}
+      if(cs.a==='denied'||cs.d==='denied')return true;}
+  }catch(e){}return false;}
+  try{if(window.__tcfapi)window.__tcfapi('addEventListener',2,function(d,ok){
+    if(ok&&d&&(d.eventStatus==='useractioncomplete'||d.eventStatus==='tcloaded')&&d.gdprApplies===false)window.__mmTcfOk=1;
+    if(ok&&d&&d.purpose&&d.purpose.consents&&d.purpose.consents[1])window.__mmTcfOk=1;});}catch(e){}
+  var SEEDDAYS={_fbp:90,_ga:730};
+  // The CLICK cookies, restored the same way and for the same reason - each one
+  // carries its own creation timestamp, so the platform reading it applies its
+  // own attribution window. A click older than that window is ignored by them,
+  // not counted; putting the value back cannot manufacture credit, it can only
+  // recover credit that was already earned and then lost with the cookie.
+  //
+  // These are RESTORE ONLY. Minting a click id would be inventing a click that
+  // never happened, which is a different thing entirely and is never done.
+  // _gcl_au is Google's conversion-linker id (1.1.<random>.<seconds>): not a
+  // click, but stable, and Google Ads reads it to join a conversion to its visit.
+  var CLICKDAYS={_fbc:90,_gcl_aw:90,_gcl_dc:90,_gcl_gb:90,_gcl_ag:90,_gcl_au:90,
+    _ttp:390,_scid:390,li_fat_id:90,_rdt_uuid:90,_epik:365,_pin_unauth:365,_uetvid:390};
+  // How old the value says it is, in days, or null when the format carries no
+  // time. Google writes GCL.<seconds>.<id>; Meta writes fb.<n>.<millis>.<id>.
+  function ckAgeDays(k,v){try{
+    var p=String(v||'').split('.');
+    // _gcl_au keeps its timestamp in the fourth part, not the second.
+    if(k==='_gcl_au'&&p.length>=4){var sa=parseInt(p[3],10);
+      if(sa>0)return (Date.now()-sa*1000)/86400000;return null;}
+    if(/^_gcl_/.test(k)&&p.length>=2){var s=parseInt(p[1],10);
+      if(s>0)return (Date.now()-s*1000)/86400000;}
+    if(k==='_fbc'&&p.length>=3){var ms=parseInt(p[2],10);
+      if(ms>0)return (Date.now()-ms)/86400000;}
+  }catch(e){}return null;}
+  function seedCookies(){try{
+    if(!SEEDON||consentBlocked())return;
+    var i=seedIdx(),st=TRACK||{};
+    ['_fbp','_ga'].forEach(function(k){
+      var cur=ck(k);
+      // The platform got there first and minted a fresh id over the gap. Put
+      // the one this browser carried before back over it: the platform reads
+      // the cookie again on its next event, and the server-side conversions
+      // already carry the old id. Checked again on every retry below, so it
+      // also holds when the platform's script runs after us.
+      if(cur&&st[k]&&reminted(k,cur,st[k])){setCk2(k,st[k],SEEDDAYS[k]);if(sameId(ck(k),st[k]))RESTORED[k]=1;return;}
+      if(cur)return;                                     // the platform's own, untouched
+      // RESTORE: the value this browser already carried, from our record.
+      // Safari expires a script-set cookie after 7 days and a shopper can
+      // clear cookies while keeping site data, so the id we are putting back
+      // is the same one Meta or Google minted here in the first place.
+      if(st[k]){setCk2(k,st[k],SEEDDAYS[k]);if(sameId(ck(k),st[k]))RESTORED[k]=1;return;}
+      if(!MINTON)return;                                 // inventing one is opt-in
+      seed(k,k==='_fbp'?('fb.'+i+'.'+Date.now()+'.'+rnd32())
+                       :('GA1.'+i+'.'+rnd32()+'.'+Math.floor(Date.now()/1000)),SEEDDAYS[k]);
+    });
+    // The click ids. Same rule, one extra guard: only put back what would
+    // still be alive had it never been deleted. The timestamp is in the value,
+    // so a cookie already past its own lifetime is left where it fell rather
+    // than resurrected - restoring is undoing a loss, not extending a life.
+    Object.keys(CLICKDAYS).forEach(function(k){
+      if(ck(k))return;                                   // the platform's own, untouched
+      var v=st[k];if(!v)return;
+      var age=ckAgeDays(k,v);
+      if(age!=null&&age>CLICKDAYS[k])return;
+      setCk2(k,v,CLICKDAYS[k]);
+      if(ck(k)===v)RESTORED[k]=1;
+    });
+  }catch(e){}}
+  // The server cannot see a consent banner. On a first-party path it re-issues
+  // the ad cookies the browser sends (services/platformCookies), so the tag
+  // leaves it a note: cb_nc=1 while the banner says no, removed once it says
+  // yes. The server then renews nothing for this browser.
+  function consentMark(){try{
+    var no=consentBlocked(),has=ck('cb_nc')==='1';
+    if(no&&!has)setCk2('cb_nc','1',30);
+    else if(!no&&ck('cb_nc')){var l=location.hostname.split('.'),x='cb_nc=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+      document.cookie=x;if(l.length>=2)document.cookie=x+'; domain=.'+l.slice(-2).join('.');
+      if(l.length>3)document.cookie=x+'; domain=.'+l.slice(-3).join('.');}
+  }catch(e){}}
+  // ── Human proof: what this page can demonstrate about its own visitor ─────
+  //
+  // Advisory. A headless browser forges every field here as easily as it
+  // forges the user agent, so nothing below condemns on its own - the server
+  // scores it beside the network evidence, which a page cannot forge. Its
+  // real value runs the other way: a pointer move or a second of visible time
+  // ACQUITS, and outranks every circumstantial signal, so a shopper on a
+  // corporate VPN is never filed as a machine.
+  //
+  // Written without a single backslash on purpose. This file is emitted from
+  // a template literal, so an escape in the source is consumed before the
+  // browser sees it - that is what shipped 'Edg//.test(ua)' in the cookie
+  // guard, and indexOf cannot make the same mistake.
+  var _act=0,_shown=0,_shownAt=(document.visibilityState==='visible'?Date.now():0),_pvn=0;
+  try{var mk=function(){_act=1};
+  ['pointerdown','pointermove','touchstart','keydown','wheel','scroll'].forEach(function(e){addEventListener(e,mk,{once:true,passive:true,capture:true})});
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'){_shownAt=Date.now()}else if(_shownAt){_shown+=Date.now()-_shownAt;_shownAt=0}});}catch(e){}
+  function hproof(){try{
+    var vis=_shown+(_shownAt?Date.now()-_shownAt:0),ua=navigator.userAgent||'',p={};
+    if(_act)p.act=1;
+    if(vis>0)p.vis=vis;
+    if(_pvn>1)p.pv=_pvn;
+    if(navigator.webdriver)p.wd=1;
+    // A Chrome user agent with no chrome object is headless Chrome with the
+    // giveaway left in - the most reliable single marker there is.
+    if(ua.indexOf('Chrome/')>=0&&!window.chrome)p.nochrome=1;
+    if(!navigator.languages||!navigator.languages.length)p.nolang=1;
+    if(!screen||!screen.width||!screen.height)p.noscreen=1;
+    // Incoherence: the UA claims one platform, the runtime reports another.
+    // Automation images are overwhelmingly Linux wearing Windows.
+    var pl=(navigator.platform||'').toLowerCase();
+    if((ua.indexOf('Windows')>=0||ua.indexOf('Macintosh')>=0)&&pl.indexOf('linux')===0)p.inc=1;
+    return p;
+  }catch(e){return{}}}
+  // ── Cookie guard: make OUR server the last writer on this page ───────────
+  //
+  // Seeding and restoring above both go through document.cookie, so WebKit
+  // caps everything they write at seven days. The server response to any
+  // first-party request re-issues the same name and value uncapped - but on
+  // every page the platform scripts rewrite THEIRS with document.cookie too,
+  // and whoever writes last decides the expiry the browser keeps.
+  //
+  // Our page view fires while this file is parsing, which means that on any
+  // page after the first, fbevents.js and gtag write after us and the cookie
+  // goes back to seven days until the visitor's next request. So one more
+  // request, at pagehide, when nothing else will write again.
+  //
+  // Deliberately not a poll. It fires at most once per page, only when the
+  // jar actually holds something worth protecting, and only on a browser that
+  // caps - which cannot be read directly, because a cookie's expiry is not
+  // exposed to script. Two ways to know it, in order of certainty:
+  //
+  //   1. MEASURED. The server writes cb_ck once and we write a twin by script
+  //      at the same moment. Eight days later, if the twin is gone and the
+  //      server's survived, this browser caps script cookies. That is the
+  //      cap itself, observed, with no string parsing.
+  //   2. ASSUMED, until then. WebKit without a Chromium marker: Safari, and
+  //      every browser on iOS, which are all WebKit underneath.
+  //
+  // Chrome and Firefox do not cap, so on those this sends nothing at all.
+  var GUARDK=['_fbp','_fbc','_ga','_gcl_aw','_gcl_dc','_gcl_gb','_gcl_ag','_gcl_au'],TWIN='cb_ckjs';
+  function capsScript(){try{
+    var s=ck('cb_ck');
+    if(s){var born=parseInt(String(s),10);
+      // Only once the twin has had time to die of the cap and not of chance.
+      if(born>0&&(Date.now()-born)/86400000>8)return !ck(TWIN);}
+    var ua=navigator.userAgent||'';
+    return /AppleWebKit/.test(ua)&&!/Chrome|Chromium|Edg/.test(ua);
+  }catch(e){return true;}}
+  function guardPing(){try{
+    if(!SEEDON||window.__mmGuard||consentBlocked())return;
+    // The twin, written the first time we see the server's reference. Same
+    // moment, same lifetime, different writer - that is the whole experiment.
+    if(ck('cb_ck')&&!ck(TWIN))setCk2(TWIN,'1',400);
+    var any=false;for(var i=0;i<GUARDK.length;i++){if(ck(GUARDK[i])){any=true;break;}}
+    if(!any)return;                                  // nothing to protect
+    if(!capsScript())return;                         // this browser does not cap
+    window.__mmGuard=1;
+    var u=T+'/ck/'+encodeURIComponent(K);
+    if(navigator.sendBeacon)navigator.sendBeacon(u);
+    else fetch(u,{method:'POST',keepalive:true,mode:'cors',credentials:'include'});
+  }catch(e){}}
+  try{
+    addEventListener('pagehide',guardPing);
+    document.addEventListener('visibilitychange',function(){
+      if(document.visibilityState==='hidden')guardPing();});
+  }catch(e){}
+  // ── AttributionEvent: the settle capture
+  // ── AttributionEvent: the settle capture ─────────────────────────────────
+  // track() above runs while this script is being PARSED, which is what makes
+  // the landing URL and UTMs survive a theme rewrite. The cost is that Meta's
+  // pixel, GA4 and Google's conversion linker have not written their cookies
+  // yet. On a multi-page visit the next page view quietly picks them up; on a
+  // single-page visit nothing ever does - 59.5% of single-page sessions on a
+  // live store, 8,628 of them from paid clicks in three days.
+  //
+  // So: watch for those cookies arriving and send them ONCE, to their own
+  // endpoint. Not a second page view - that would inflate pageviews, sessions
+  // and bounce rate and corrupt every funnel in the product.
+  var ATTRK=['_fbp','_fbc','_ga','_gcl_aw','_gcl_dc','_gcl_gb','_gcl_ag','_gcl_au','_ttp','_scid','_uetsid','_uetvid','li_fat_id','_rdt_uuid','_epik','_pin_unauth'];
+  var attrHad={},attrSends=0;
+  ATTRK.forEach(function(k){if(ck(k))attrHad[k]=1;});
+  var SUPERSEDE={};
+  function attrNew(){var g=null;ATTRK.forEach(function(k){
+    // A cookie we seeded that the platform has since replaced: send the
+    // platform's value and say it supersedes ours, because the id the
+    // platform is using is the only one worth storing.
+    if(SEEDED[k]){var cur=ck(k);
+      if(cur&&cur!==SEEDED[k]){SEEDED[k]=cur;SUPERSEDE[k]=1;(g=g||{})[k]=cur;return;}
+      // The seed itself, reported once. The page view carries it too, but a
+      // blocked or dropped page view must not be the only copy of an id the
+      // platforms are now using.
+      if(cur&&!attrHad[k]){(g=g||{})[k]=cur;}
+      return;}
+    if(attrHad[k])return;var v=ck(k);if(v){(g=g||{})[k]=v;}});
+    // _ga_<measurementId> carries the GA4 SESSION, and its name is different
+    // for every property so it cannot sit in a fixed list. The page-view path
+    // already reads it by prefix; without this the retry could not, so a GA4
+    // tag that fired after us lost the session for good.
+    try{var all=document.cookie?document.cookie.split('; '):[];
+      for(var i=0;i<all.length;i++){var eq=all[i].indexOf('=');if(eq<=0)continue;
+        var n2=all[i].substring(0,eq);if(n2.indexOf('_ga_')!==0||attrHad[n2])continue;
+        (g=g||{})[n2]=decodeURIComponent(all[i].substring(eq+1));}}catch(e){}
+    return g;}
+  function attrSend(reason){
+    // NOT single-shot. This used to stop at the first cookie to land, and
+    // measured across 11,754 visitors that meant 80.6% of these events
+    // carried exactly ONE cookie and 98.9% of visitors produced exactly
+    // one event. The platforms do not write together: _fbp may land at
+    // 400ms and _gcl_aw at 3s, and everything after the first was thrown
+    // away. attrHad already tracks what we have sent, so each send only
+    // ever carries what is genuinely new and repeating is not duplication.
+    // Capped so a pathological page cannot chatter - 14, not 6, because the
+    // sweeps below run for half a minute and each platform writes once.
+    if(attrSends>=14)return;var g=attrNew();if(!g)return;attrSends++;
+    for(var k in g)attrHad[k]=1;
+    // Carry the acquisition record too. The server fills only what it is
+    // MISSING, so this costs nothing when the page view already landed it -
+    // and rescues the case where that request never arrived (blocked, offline,
+    // a failed first hop). Without it a lost page view loses the campaign for
+    // good, because nothing else ever re-sends it.
+    try{var acq=TRACK||{},AK=['first_landing_page','first_referrer','first_touch_at','landing_page_url','referrer',
+      'utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','gbraid','wbraid','fbclid','msclkid','ttclid','gad_source','gad_campaignid',
+      'first_utm_source','first_utm_medium','first_utm_campaign','first_utm_term','first_utm_content','first_gclid','first_gbraid','first_wbraid','first_fbclid'];
+      AK.forEach(function(a){if(acq[a]&&!g[a])g[a]=acq[a];});}catch(e){}
+    var sup=[];for(var sk in SUPERSEDE){if(g[sk])sup.push(sk);}
+    var res=[];for(var rk in RESTORED){res.push(rk);}
+    var body=JSON.stringify({id:MM,session_id:sid(),reason:reason,cookies:g,supersede:sup.length?sup:undefined,
+      restored:res.length?res:undefined,
+      seeded:(function(){var a=[];for(var k3 in SEEDED)if(g[k3]===SEEDED[k3])a.push(k3);return a.length?a:undefined;})()});
+    try{
+      if(reason==='pagehide'&&navigator.sendBeacon){navigator.sendBeacon(T+'/attr/'+K,new Blob([body],{type:'text/plain'}));}
+      else{fetch(T+'/attr/'+K,{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:body});}
+    }catch(e){}
+    // Complete the LOCAL blob too, so the next page view, every commerce event
+    // and the order that follows all inherit the identity we just gained -
+    // without waiting for another round trip.
+    try{var st=JSON.parse(anyBlob()||'{}');var ch=false;
+      for(var k2 in g){if(!st[k2]){st[k2]=g[k2];ch=true;}}
+      if(ch){var j2=JSON.stringify(st);localStorage.setItem(BLOBN,j2);
+        if(stable(ck(BLOBN))!==stable(j2))setCk(BLOBN,j2,400);}}catch(e){}
+  }
+  // Poll briefly rather than on a fixed timer: fire the moment the cookies
+  // land, and stop after ~8s so a consent-blocked page costs nothing.
+  // Poll the FULL window rather than stopping at the first hit, because the
+  // tags fire independently and the late ones are the ones worth waiting
+  // for. attrNew() returns null once everything known has been sent, so a
+  // quiet page costs nothing beyond the timer itself.
+  function attrStart(){
+  // Before anything else: a shopper who leaves in under a second still
+  // carries an id the platforms will recognise.
+  consentMark();seedCookies();
+  attrSend('seeded');
+  // 200ms, not 300: Meta's fbevents.js writes _fbp a few hundred milliseconds
+  // after it loads, and an accidental ad tap is gone within the second.
+  var attrN=0,attrT=setInterval(function(){attrN++;
+    attrSend('cookies-arrived');
+    if(attrN>45){clearInterval(attrT);}},200);
+  // Measured on a live store: of every commerce event, 70% fire inside the
+  // first second and only 13.4% of those carry Meta's _fbp. By 3s it is 46.6%,
+  // by 10s 55%. The 300ms poll above covers that whole rise. These later
+  // sweeps exist for the tags that are slower still - a consent banner the
+  // shopper takes fifteen seconds to accept, a GTM container behind a slow
+  // network - and they cost nothing on a quiet page because attrNew() returns
+  // null once everything known has already been sent.
+  [3000,5000,7000,10000,15000,20000,30000].forEach(function(ms){
+    setTimeout(function(){consentMark();seedCookies();attrSend('sweep-'+ms);},ms);});
+  }
+  whenShown(attrStart);
+  // The bouncer's safety net: leaving before the poll catches it.
+  try{addEventListener('pagehide',function(){attrSend('pagehide');});
+    document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')attrSend('pagehide');});}catch(e){}
+
+  // ── Form context bridge ───────────────────────────────────────────────────
+  // A Cookiebees form in an iframe announces itself with mm:form:view and then
+  // waits for THIS page to hand over its acquisition context - the form's own
+  // URL is ours, so without the handover it records our domain as the landing
+  // page and the lead arrives with no campaign, no click id and no visitor id.
+  //
+  // Until now only our own form snippet answered, and it replied to a hard-coded
+  // element id (#mm-crm-form). A form dropped in through Framer's, Webflow's or
+  // Wix's own Embed component is an iframe THEY created, with their id - so it
+  // asked and nothing ever answered, silently, on every such site.
+  //
+  // Replying to e.source answers whoever asked, whichever tool built the frame,
+  // and it lives in the tracker the site already has rather than in a second
+  // snippet somebody must remember to paste. Origin-checked both ways: we only
+  // answer our own form, and we only speak to our own origin.
+  try{
+    var MMFORM_ORIGIN=(function(){try{return new URL("https://app.cookiebees.io").origin;}catch(e){return null;}})();
+    if(MMFORM_ORIGIN)window.addEventListener('message',function(e){
+      try{
+        if(e.origin!==MMFORM_ORIGIN)return;
+        var d=e.data;
+        if(!d||d.source!=='mm-crm-form'||d.type!=='mm:form:view')return;
+        if(!e.source||!e.source.postMessage)return;
+        e.source.postMessage({source:'mm-crm-parent',type:'mm:parent-context',
+          payload:{tracking:TRACK,search:location.search,href:location.href,referrer:document.referrer}},MMFORM_ORIGIN);
+      }catch(_){}
+    });
+  }catch(e){}
+  // First-touch shortcuts (kept for back-compat with earlier GTM setups).
+  // First-touch, written once and never overwritten. Checks BOTH prefixes
+  // before writing, so a visitor who already has mm_land keeps their original
+  // first touch instead of today's page becoming it.
+  function first(suffix,v){if(!v)return;var P="mm";
+    if(ck('cb_'+suffix)||ck('mm_'+suffix))return;setCk(P+'_'+suffix,v,400);}
+  first('land',TRACK.first_landing_page||location.href);
+  if(document.referrer&&document.referrer.indexOf(location.host)===-1)first('ref',document.referrer);
+  function utm(){var u=new URL(HREF0||location.href),d={};['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(p){var v=u.searchParams.get(p);if(v)d[p]=v;});return d;}
+  var lastPath='';
+  var pvFirst=true;
+  function pv(){var path=location.pathname+location.search;
+    // The landing view reports the URL the visitor ARRIVED on, not the
+    // tidied one they were left with a moment later.
+    if(pvFirst&&HREF0){try{var h0=new URL(HREF0);path=h0.pathname+h0.search;}catch(e){}}
+    pvFirst=false;
+    if(path===lastPath)return;lastPath=path;
+    try{fetch(T+'/pv/'+K,{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify(
+      {id:MM,cookies:track(),vis:document.visibilityState,prerendered:WASPRE,views:[{path:path,host:location.hostname,title:document.title,referrer:document.referrer||'',session_id:sid(),utm:utm(),ts:new Date().toISOString(),hp:(_pvn++,hproof())}]})});}catch(e){}}
+  // Fire ANY ecommerce (or custom) event with an event_name. Full-funnel capture:
+  // window.mmCommerce.event('add_to_cart',{value:2499,currency:'INR',items:[...]}).
+  function ev(name,params){if(!name)return;var o=params&&typeof params==='object'?params:{};o.event_name=name;o.mm_id=MM;o.session_id=sid();
+    try{if(name==='add_to_cart'||name==='begin_checkout')localStorage.setItem('mmpop_cart',String(Date.now()));}catch(e){}
+    if(!o.cookies_data)o.cookies_data=track();if(!o.page_location)o.page_location=location.href;
+    if(!o.page_title)o.page_title=document.title;if(!o.page_referrer)o.page_referrer=document.referrer||'';if(!o.ts)o.ts=new Date().toISOString();
+    try{fetch(B+'/event/'+K,{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify(o)});}catch(e){}}
+  window.mmCommerce={
+    id:MM,
+    cookies:cookies,
+    data:function(){return track();},   // the fresh mm_tracking blob (all cookies+utm)
+    pageview:pv,
+    event:ev,                            // explicit event fire
+    purchase:function(o){o=o||{};o.mm_id=MM;if(!o.cookies_data)o.cookies_data=track();
+      try{localStorage.setItem('mmpop_done',String(Date.now()));localStorage.removeItem('mmpop_cart');}catch(e){}
+      try{fetch(B+'/purchase/'+K,{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify(o)});}catch(e){}}
+  };
+  // Auto page-view on load + on SPA route changes (pushState / back-forward).
+  // The landing view waits for the page to be shown (see whenShown above).
+  whenShown(pv);
+  try{var _ps=history.pushState;history.pushState=function(){_ps.apply(this,arguments);setTimeout(pv,0);};
+    window.addEventListener('popstate',function(){setTimeout(pv,0);});}catch(e){}
+  // Automatic dataLayer capture is OPT-IN (px.js?key=...&auto=1). Off by default,
+  // so when you send events yourself the pixel never double-sends them.
+  
+  // Shopify cart attributes are OPT-IN (px.js?key=...&cart_attr=1).
+  
+  var CA_KEYS=['gclid','gbraid','wbraid','fbclid','msclkid','ttclid','li_fat_id','epik','ScCid','rdt_cid','oppref',
+    'gad_source','gad_campaignid','utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id',
+    '_gcl_aw','_gcl_dc','_gcl_gb','_gcl_ag','_fbc','_fbp','_ttp','_scid','obref','_ga','mm_rc','mm_rc_at'];
+  var CA_FIRST=['first_touch_at','first_utm_source','first_utm_medium','first_utm_campaign','first_utm_term',
+    'first_utm_content','first_gclid','first_fbclid','first_msclkid','first_ttclid','first_landing_page','first_referrer'];
+  // Shopify caps attributes, so this stays a BUDGET: a value too long to be a
+  // real id is skipped, and once the budget is spent the rest is dropped WHOLE.
+  // A truncated click id is worse than a missing one - it would be sent to the
+  // ad platform and silently match nothing.
+  function caCtx(){try{
+    var t=(typeof TRACK==='object'&&TRACK)||{},out={},n=0,i,k,v;
+    for(i=0;i<CA_KEYS.length;i++){k=CA_KEYS[i];v=t[k];
+      if(v==null||v==='')continue;v=String(v);
+      if(v.length>600)continue;
+      if(n+k.length+v.length>1600)break;
+      out[k]=v;n+=k.length+v.length;}
+    // First-touch rides as ONE hidden blob: valuable, but the first thing that
+    // should go if anything has to.
+    var f={},fn=0;
+    for(i=0;i<CA_FIRST.length;i++){k=CA_FIRST[i];v=t[k];
+      if(v==null||v==='')continue;v=String(v);
+      if(v.length>300)continue;
+      if(fn+k.length+v.length+6>500)continue;
+      f[k]=v;fn+=k.length+v.length+6;}
+    for(k in f){out._mm_first=JSON.stringify(f);break;}
+    for(k in out)return out;
+    return null;
+  }catch(e){return null;}}
+  var CA_SENT='mm_ca', ca_busy=false, ca_pend=false, ca_fail=0;
+  function caWrite(force){try{
+    // NEVER merge a null/empty id: mm_cid is the only key we send, and sending
+    // it blank would overwrite a good value already sitting on the cart. MM is
+    // always minted before this runs, so this guard is belt-and-braces.
+    if(!MM||typeof MM!=='string'||MM.length<6)return;
+    if(ca_busy){ca_pend=ca_pend||force;return;} // queue instead of dropping a forced re-stamp
+    var ca_ctx=caCtx();
+    // The marker carries the context too: a new session that arrives with a fresh
+    // click id must re-stamp, and keying on the visitor id alone never would.
+    var ca_sig='';if(ca_ctx){try{ca_sig=JSON.stringify(ca_ctx);}catch(e){}}
+    var ca_mark=MM+(ca_sig?'|'+ca_sig.length+':'+ca_sig.slice(0,40):'');
+    if(!force){try{if(sessionStorage.getItem(CA_SENT)===ca_mark)return;}catch(e){}}
+    ca_busy=true;
+    // MERGE, never replace: /cart/update.js only touches the keys it is given, so
+    // another app's attributes (subscriptions, gift notes, delivery dates) survive.
+    // Sending a whole attributes object would silently wipe them.
+    // '_'-prefixed keys: Shopify's convention for attributes that must not surface
+    // on a customer-facing order display or notification email. mm_cid keeps its
+    // visible name - it is short, already live on stores, and merchants use it to
+    // eyeball an order in their own admin.
+    var ca_attr={mm_cid:MM},ca_k;
+    if(ca_ctx)for(ca_k in ca_ctx)ca_attr[ca_k.charAt(0)==='_'?ca_k:'_'+ca_k]=ca_ctx[ca_k];
+    fetch('/cart/update.js',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({attributes:ca_attr}),credentials:'same-origin',keepalive:true})
+      .then(function(r){
+        // Only claim it landed if Shopify said so. A failed write used to be
+        // swallowed AND marked as sent, so one 422 - which is what you get when
+        // the cart does not exist yet - silently cost that visitor their id for
+        // the rest of the session.
+        if(!r||!r.ok){ca_fail++;if(ca_fail<4)setTimeout(function(){caWrite(true);},400*ca_fail);return;}
+        ca_fail=0;
+        try{sessionStorage.setItem(CA_SENT,ca_mark);}catch(e){}
+        // Verify, then repair. Themes and cart apps overwrite attributes, and a
+        // 200 from /cart/update.js is not proof the value survived whatever ran
+        // next. One read-back per write is cheap next to losing the join.
+        setTimeout(function(){try{
+          fetch('/cart.js',{credentials:'same-origin'}).then(function(c){return c.json();}).then(function(c){
+            var a=(c&&c.attributes)||{};
+            if(a.mm_cid!==MM){try{sessionStorage.removeItem(CA_SENT);}catch(e){}caWrite(true);}
+          }).catch(function(){});
+        }catch(e){}},700);
+      })
+      .catch(function(){ca_fail++;if(ca_fail<4)setTimeout(function(){caWrite(true);},400*ca_fail);})
+      .then(function(){ca_busy=false;if(ca_pend){ca_pend=false;caWrite(true);}},
+            function(){ca_busy=false;});
+  }catch(e){ca_busy=false;}}
+  // Browsing pages write once per session - enough to be on the cart long before
+  // checkout, without POSTing to the store on every product view. Runs wherever
+  // px.js loads: product, collection, home, search, cart.
+  caWrite(false);
+  // ...then VERIFY on every page load, because the marker records that we SENT
+  // the id, not that it survived.
+  //
+  // A checkout app or theme that REPLACES the cart's attributes object (rather
+  // than merging into it) wipes mm_cid silently. The write returns 200, the
+  // 700ms read-back after it passes, and the overwrite happens later - after
+  // which sessionStorage says "sent" and caWrite(false) short-circuits on every
+  // remaining page of the visit. The id is gone and nothing ever looks again.
+  // Seen on a live store whose checkout app stamps its own attributes: only a
+  // third of orders kept mm_cid, while the app's own keys were on all of them.
+  //
+  // One same-origin GET per page load is cheap; losing the order join is not.
+  // Bounded to two repairs per page so an app that overwrites unconditionally
+  // costs a couple of requests rather than an endless write-wipe-write loop.
+  var ca_repairs = 0;
+  function caVerify(){try{
+    if(!MM||ca_repairs>=2)return;
+    fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(c){
+      var a=(c&&c.attributes)||{};
+      if(a.mm_cid!==MM){ca_repairs++;try{sessionStorage.removeItem(CA_SENT);}catch(e){}caWrite(true);}
+    }).catch(function(){});
+  }catch(e){}}
+  try{setTimeout(caVerify,1500);}catch(e){}
+  // A cart that changes hands late - an app rebuilding it on the way to
+  // checkout - is the exact moment the stamp goes missing, so look once more
+  // when the page is being left behind.
+  try{document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden')caVerify();
+  });}catch(e){}
+  // The moments worth forcing: add-to-cart (incl. Dawn quick-add on collection
+  // pages and common theme classes), Buy Now, and anything leading to checkout.
+  // Best-effort by nature - a Buy Now click navigates immediately, so this can
+  // lose the race. That is precisely why the Shopify order id remains the
+  // primary join and this is only a second copy.
+  var CA_SEL='[name="add"],form[action*="/cart/add"] [type="submit"],.product-form__submit,'
+    +'.quick-add__submit,[data-add-to-cart],.add-to-cart,.btn--add-to-cart,[data-action="add-to-cart"],'
+    +'.shopify-payment-button,.shopify-payment-button__button,[data-testid="Checkout-button"],'
+    +'[name="checkout"],a[href*="/checkout"],form[action*="/cart"] [type="submit"],'
+    // Third-party checkout buttons. These are the ones that matter MOST on a
+    // product page: a "Buy Now" from an India-stack checkout app skips the cart
+    // page entirely and hands off to the app's own flow, so the click is the
+    // last moment we control. Without them the only stamp on that journey is
+    // the page-load write, made before the shopper picked a variant and before
+    // any later click id landed.
+    // Shiprocket / Fastrr (name="sr-headless-button"), GoKwik, Shopflo,
+    // Razorpay Magic, Simpl, Snapmint. Matched on their OWN class and name
+    // hooks - deliberately not a loose [class*="checkout"], which would catch
+    // page wrappers and fire on clicks that are not a checkout at all.
+    +'.sr-headless-checkout,[name="sr-headless-button"],[class*="fastrr"],[id*="fastrr"],'
+    +'[class*="gokwik"],[id*="gokwik"],[class*="shopflo"],[id*="shopflo"],'
+    +'[class*="rzp-magic"],[class*="razorpay-magic"],[class*="snapmint"],[class*="getsimpl"]';
+  // pointerdown as well as click. An accelerated wallet button (Shop Pay,
+  // Apple Pay, PayPal) navigates on click, so by the time a click handler runs
+  // the page may already be leaving - pointerdown fires tens of milliseconds
+  // earlier and is the difference between winning and losing that race. Both
+  // are wired because pointerdown does not exist on every older browser, and
+  // caWrite dedupes so the pair cannot double-post.
+  try{['pointerdown','click'].forEach(function(evt){
+    document.addEventListener(evt,function(e){var t=e.target;if(!t||!t.closest)return;
+      if(t.closest(CA_SEL))caWrite(true);
+    },true);
+  });}catch(e){}
+  // Last chance on the way out. If a write never landed this session, the
+  // browser hiding the page is the final moment we get to try.
+  try{document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden'){try{if(sessionStorage.getItem(CA_SENT))return;}catch(e){}caWrite(true);}
+  });}catch(e){}
+  // Headless and SPA themes change route without a page load, so the one write
+  // per session would otherwise be pinned to whatever the entry page was.
+  try{var _ps=history.pushState;history.pushState=function(){var r=_ps.apply(this,arguments);
+    try{setTimeout(function(){caWrite(false);},80);}catch(e){}return r;};
+    window.addEventListener('popstate',function(){setTimeout(function(){caWrite(false);},80);});
+  }catch(e){}
+  // Keyboard/programmatic submits of an add-to-cart form never produce a click.
+  try{document.addEventListener('submit',function(e){var f=e.target;
+    if(f&&f.action&&/\/cart\/add/.test(String(f.action)))caWrite(true);},true);}catch(e){}
+  // AJAX carts: quick-add drawers, upsell apps and headless themes add via
+  // fetch/XHR to /cart/add|change - re-stamp right after, which also covers the
+  // "attributes need an existing cart" case (the write lands post-creation).
+  // Our own /cart/update.js call is not in the pattern, so this cannot loop.
+  try{var _cf=window.fetch;window.fetch=function(u){var p=_cf.apply(this,arguments);
+    try{var s=(typeof u==='string')?u:((u&&u.url)||'');
+      if(/\/cart\/(add|change|clear)(\.js)?/.test(s))p.then(function(){setTimeout(function(){caWrite(true);},60);},function(){});}catch(e){}
+    return p;};}catch(e){}
+  try{var _xo=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){
+    try{if(/\/cart\/(add|change|clear)(\.js)?/.test(String(u||'')))this.addEventListener('load',function(){setTimeout(function(){caWrite(true);},60);});}catch(e){}
+    return _xo.apply(this,arguments);};}catch(e){}
+  try{if(/\/cart/.test(location.pathname))caWrite(true);}catch(e){}
+  
+  // ── Recommended products (recs=1) ─────────────────────────────────────────
+  // Host resolution, in order - the matrix this widget must survive:
+  //   1. Merchant-placed <div id="mm-recs"> anywhere - always wins. The escape
+  //      hatch for headless builds, non-Shopify carts, unusual themes, and any
+  //      placement outside the cart (product page, homepage).
+  //   2. The cart PAGE (last path segment 'cart', so /cart, /en/cart, /a/cart
+  //      all count) - injected after the main cart form, scoped to <main>
+  //      because Dawn keeps a second form[action="/cart"] inside its closed
+  //      drawer earlier in the DOM.
+  //   3. The cart DRAWER, only when NOT on the cart page - Dawn ships a closed
+  //      <cart-drawer> on every page, so drawer-first meant rendering into an
+  //      element nobody can see, at full layout size, on the exact page whose
+  //      job is showing the cart.
+  //   4. No match at all -> render nowhere, never guess. A widget in a random
+  //      spot on an unknown theme is worse than no widget.
+  // The Add button renders only when /cart.js answered (a real Shopify
+  // storefront) AND the product URL carries a /products/<handle>; otherwise
+  // the card stays a plain link, which works on any platform.
+  var RECS_BOX_ID='mm-recs';var RECS_SHOP=false;
+  var RECS_TOTAL=null;var RECS_SURF={"cart":true,"drawer":true,"product":true};var RECS_PID=null;
+  function recsProductPage(){return (/\/products\/[^/?#]+/).test(location.pathname);}
+  // The product on a product page: the theme's own analytics meta first, else
+  // the handle's JSON. Resolved once at boot.
+  function recsProductId(cb){try{
+    var m=window.ShopifyAnalytics&&ShopifyAnalytics.meta&&ShopifyAnalytics.meta.product&&ShopifyAnalytics.meta.product.id;
+    if(m)return cb(String(m));
+    var h=(location.pathname.match(/\/products\/([^/?#]+)/)||[])[1];if(!h)return cb(null);
+    fetch('/products/'+h+'.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(p){cb(p&&p.id?String(p.id):null);}).catch(function(){cb(null);});
+  }catch(e){cb(null);}}
+  function recsCartIds(cb){try{fetch('/cart.js',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(c){
+    RECS_SHOP=true;var ids=[];(c&&c.items||[]).forEach(function(it){if(it.product_id)ids.push(String(it.product_id));});
+    // Shopify's cart.js totals are in minor units (paise); the API wants major.
+    RECS_TOTAL=(c&&typeof c.total_price==='number')?Math.round(c.total_price)/100:null;cb(ids);
+  }).catch(function(){cb([]);});}catch(e){cb([]);}}
+  // One fetch per product per page, cached: recsRender runs again whenever the
+  // cart changes or the drawer opens, and re-fetching the same product each
+  // time would put four requests on every one of those.
+  var RECS_PCACHE={};
+  function recsProduct(hd){
+    if(RECS_PCACHE[hd])return RECS_PCACHE[hd];
+    RECS_PCACHE[hd]=fetch('/products/'+hd+'.js',{credentials:'same-origin'})
+      .then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
+    return RECS_PCACHE[hd];
+  }
+  // What a shopper could actually buy right now. The available flag is absent on some
+  // themes' JSON, and treating absent as unavailable would hide every variant
+  // on those stores, so absent counts as available.
+  function recsBuyable(prod){
+    var vs=(prod&&prod.variants)||[];
+    var live=vs.filter(function(v){return v&&v.available!==false;});
+    return live.length?live:vs;
+  }
+  // The button must not lie. If a product has more than one variant left to
+  // choose between we send the shopper to its page - that is right, picking
+  // someone's size for them is how carts get abandoned - but then the button
+  // may not say "Add to cart". It says what it will do.
+  // If every card was pulled the widget is an empty frame with a heading over
+  // nothing, which reads as broken rather than as "we had no suggestion".
+  function recsHideIfEmpty(host){try{
+    if(!host.querySelector('[data-mm-card]')&&!host.querySelector('[data-mm-addset]'))host.innerHTML='';
+  }catch(e){}}
+  // What this product calls the thing being chosen, in the merchant's own
+  // words - "size", "weight", "colour". Deliberately not "variant": variant is
+  // how Shopify is built, not what anyone standing in front of the card is
+  // choosing. Empty when the product has more than one option, because
+  // "Choose material" would name half of a two-part decision.
+  function recsOptName(prod){
+    var opts=(prod&&prod.options)||[];
+    if(opts.length!==1)return '';
+    var nm=String((opts[0]&&(opts[0].name||opts[0]))||'').toLowerCase();
+    return nm==='title'?'':nm;
+  }
+  function recsVarName(v){
+    if(v&&Array.isArray(v.options)&&v.options.length)return v.options.join(' / ');
+    return String((v&&v.title)||'');
+  }
+  // The choice, made in the card. A shopper who has to leave for the product
+  // page to pick a size has been sent backwards in their own journey and most
+  // of them do not come back - but picking the size FOR them is worse, because
+  // the wrong size is a return or an abandoned cart. So the card asks, the way
+  // a collection page's quick-add asks, and the answer is one tap away without
+  // ever leaving the page.
+  function recsPicker(card,btn,prod,live,C){
+    if(!card||card.querySelector('[data-mm-var]'))return;
+    var nm=recsOptName(prod);
+    var ask=nm?('Choose '+nm):'Choose options';
+    var sel=document.createElement('select');
+    sel.setAttribute('data-mm-var','1');
+    sel.setAttribute('aria-label',ask);
+    // A select's dropdown list takes its colours from the control, and the
+    // browser paints that list itself - so color:inherit over a transparent
+    // background gives a dark theme white-on-white options nobody can read.
+    // The system form colours track the OS's own light/dark and are legible
+    // by construction; the literals before them are the fallback for anything
+    // that does not know the keywords. The grey border reads on either ground.
+    sel.style.cssText='display:block;box-sizing:border-box;width:100%;margin-top:9px;padding:7px 8px;'
+      +'font-family:inherit;font-size:'+C.btnFont+';line-height:1.3;'
+      +'color:#111;background:#fff;color:FieldText;background:Field;'
+      +'border:1px solid rgba(128,128,128,.45);border-radius:8px;cursor:pointer';
+    var ph=document.createElement('option');ph.value='';ph.textContent=ask;sel.appendChild(ph);
+    live.forEach(function(v){
+      var o=document.createElement('option');o.value=String(v.id);o.textContent=recsVarName(v);
+      sel.appendChild(o);
+    });
+    btn.parentNode.insertBefore(sel,btn);
+    // A card showing one price for a product whose sizes cost different
+    // amounts is a lie the shopper only discovers at checkout. Say "from"
+    // until they choose, then say the real number.
+    var pEl=card.querySelector('[data-mm-price]');
+    var cur=card.getAttribute('data-mm-cur')||'';
+    var varies=false;for(var i=1;i<live.length;i++)if(live[i].price!==live[0].price)varies=true;
+    if(pEl&&varies&&pEl.getAttribute('data-mm-from')==null){
+      pEl.setAttribute('data-mm-from',pEl.textContent);
+      pEl.textContent='from '+pEl.textContent;
+    }
+    sel.addEventListener('change',function(){
+      sel.style.borderColor='rgba(128,128,128,.45)';
+      if(!pEl||!varies)return;
+      var base=pEl.getAttribute('data-mm-from')||'';
+      if(!sel.value){pEl.textContent='from '+base;return;}
+      var v=null;for(var j=0;j<live.length;j++)if(String(live[j].id)===String(sel.value))v=live[j];
+      // Shopify's product JSON prices are in minor units; recsMoney wants major.
+      if(v&&typeof v.price==='number')pEl.textContent=recsMoney({price:v.price/100,currency:cur});
+      else pEl.textContent='from '+base;
+    });
+  }
+  function recsTellTruth(host,C){try{
+    host.querySelectorAll('[data-mm-add]').forEach(function(b){
+      var hd=b.getAttribute('data-mm-h');if(!hd)return;
+      recsProduct(hd).then(function(prod){
+        if(!prod)return;
+        var all=(prod.variants)||[];
+        var live=all.filter(function(v){return v&&v.available!==false;});
+        if(all.length&&!live.length){
+          // Sold out: take the card away rather than label it. A recommendation
+          // is a suggestion to buy, and suggesting something nobody can buy is
+          // worse than showing nothing - it spends the shopper's attention and
+          // then refuses them. The server already filters on catalog in_stock,
+          // but that flag is a snapshot and a product can sell out between
+          // syncs; this is the store's own answer, read at the moment of
+          // display, so no staleness window applies.
+          var card=b.closest?b.closest('[data-mm-card]'):null;
+          if(card&&card.parentNode)card.parentNode.removeChild(card);
+          else{b.textContent='Sold out';b.disabled=true;b.style.opacity='.55';b.style.cursor='default';}
+          recsHideIfEmpty(host);
+          return;
+        }
+        if(live.length>1){
+          // A product card has room for the choice, so it asks there and the
+          // button keeps saying what it does. The reorder strip is a single
+          // flex row with no room for a control - that one still names the
+          // choice on the button and opens the product page.
+          var card2=b.closest?b.closest('[data-mm-card]'):null;
+          if(card2)recsPicker(card2,b,prod,live,C);
+          else if(/add to cart/i.test(b.textContent)){
+            var nm2=recsOptName(prod);
+            b.textContent=nm2?('Choose '+nm2):'Choose options';
+          }
+        }
+      });
+    });
+  }catch(e){}}
+  function recsCartPage(){return (/(^|\/)cart\/?$/).test(location.pathname);}
+  var RECS_DRAWER_SEL='cart-drawer,#CartDrawer,.cart-drawer,.drawer--cart,#cart-drawer,[id*="CartDrawer"]';
+  function recsDrawerEl(){return document.querySelector(RECS_DRAWER_SEL);}
+  function recsNotInDrawer(el){try{return !(el.closest&&el.closest(RECS_DRAWER_SEL));}catch(e){return true;}}
+
+  // How much empty room sits BESIDE the totals before we will use it.
+  // Below this the widget stacks instead: four 190px cards plus their gaps
+  // need ~815px, and a column narrower than this turns the grid into a
+  // one-per-row list that is taller than the stacked layout it replaced.
+  var RECS_SIDE_MIN=860;
+  var recsMode='';
+
+  // Where Check out lives, and what room there is next to it.
+  //
+  // Two facts about a Shopify cart footer decide the whole layout. The button
+  // sits inside a narrow totals column - 350px on this theme - and that column
+  // is shoved to the right by a margin, leaving most of the row empty: 942 of
+  // 1292 pixels on GirOrganic. And that row lives inside the theme's own
+  // .page-width, which is where the horizontal page padding comes from.
+  //
+  // So the good mount is INSIDE that row, filling the empty half: the widget
+  // is beside Check out rather than above it, so it still cannot push the
+  // button anywhere, and it inherits the theme's page padding instead of
+  // sitting flush against the window edge.
+  //
+  // Note the row we want is not the first flex ancestor - that is .cart__ctas,
+  // the button's own wrapper, which has no spare room at all. It is the flex
+  // ancestor with the MOST free width beside its child, which is the footer.
+  function recsCheckoutParts(){
+    var list=document.querySelectorAll('[name="checkout"],.cart__checkout-button,a[href="/checkout"],a[href^="/checkout?"],#checkout');
+    for(var i=0;i<list.length;i++){
+      var btn=list[i];if(!recsNotInDrawer(btn))continue;
+      var el=btn,section=null,row=null,block=null,best=-1;
+      for(var d=0;d<12&&el&&el.parentNode&&el!==document.body;d++){
+        var id=el.id||'';
+        if(/^shopify-section/.test(id))section=el;
+        var par=el.parentNode;
+        if(par.nodeType===1){
+          try{
+            var pcs=getComputedStyle(par);
+            // Anchored: "nowrap" CONTAINS "wrap", so an unanchored test throws
+            // away exactly the single-line rows this placement is for.
+            if(/flex/.test(pcs.display)&&!/^wrap/.test(pcs.flexWrap)){
+              // Free means UNOCCUPIED, which is every sibling's width and the
+              // gaps between them - not just the button's own block.
+              //
+              // Measuring only the block assumes the rest of the row is empty.
+              // That is true of Dawn's cart footer, where the totals column is
+              // held right by a margin over open space. It is false of a
+              // two-column cart, where the row holds the item list AND the
+              // totals and is completely full - and there the old sum read the
+              // item list as 931px of room going spare. Inserting a flex:1 1 0
+              // child into a full nowrap row gives it zero width and takes the
+              // difference out of the theme's own columns: the widget rendered
+              // as an invisible sliver and shrank the totals by 48px. Measured
+              // on the WeightWorld FI cart, which is exactly that layout.
+              //
+              // Zero-width children are skipped along with their gap - themes
+              // park mobile-only blocks in the same row behind a hide class.
+              // Our own box is never an occupant. It is mounted INTO this row,
+              // so counting it turns the space it was given into space that is
+              // taken - GirOrganic's footer read 942px free before the widget
+              // existed and 24px with it in place, which would move a correctly
+              // placed widget to stack mode the moment anything re-measured.
+              var kids=par.children,used=0,n=0;
+              for(var q=0;q<kids.length;q++){
+                if(kids[q].id===RECS_BOX_ID)continue;
+                var kw=kids[q].offsetWidth;if(kw<=0)continue;used+=kw;n++;}
+              if(n>1)used+=(parseFloat(pcs.columnGap)||parseFloat(pcs.gap)||0)*(n-1);
+              var free=par.clientWidth-(parseFloat(pcs.paddingLeft)||0)-(parseFloat(pcs.paddingRight)||0)-used;
+              if(free>best){best=free;row=par;block=el;}
+            }
+          }catch(e){}
+        }
+        el=par;
+      }
+      if(section||row)return {btn:btn,section:section,row:row,block:block,free:best};
+    }
+    return null;
+  }
+
+  // The theme's own page container, so the widget lines up with the cart
+  // above it rather than running to the edge of the window.
+  function recsPageWidth(from){
+    var el=from;
+    for(var d=0;d<8&&el&&el!==document.body;d++){
+      var cls=(typeof el.className==='string')?el.className:'';
+      if(/page-width|container|wrapper--full|shopify-section-header/.test(cls)&&el.clientWidth>320)return el;
+      el=el.parentNode;
+    }
+    return null;
+  }
+
+  function recsHost(){
+    var el=document.getElementById(RECS_BOX_ID);if(el)return el;
+    el=document.createElement('div');el.id=RECS_BOX_ID;
+    if(recsCartPage()){
+      if(!RECS_SURF.cart)return null;
+      var parts=recsCheckoutParts();
+      // 1. Beside the totals, in the empty half of the footer row.
+      if(parts&&parts.row&&parts.block&&parts.free>=RECS_SIDE_MIN){
+        recsMode='side';
+        el.setAttribute('data-mm-side','1');
+        el.style.cssText='flex:1 1 0;min-width:0;align-self:flex-start;margin-right:24px';
+        // The totals are held right by a fixed left margin measured against an
+        // empty row. Once something real occupies that space the margin would
+        // push the totals off the end, so hand the same job to auto - which
+        // keeps them right whatever the widget's width turns out to be.
+        try{
+          var ml=parseFloat(getComputedStyle(parts.block).marginLeft)||0;
+          if(ml>24)parts.block.style.marginLeft='auto';
+        }catch(e){}
+        parts.row.insertBefore(el,parts.row.firstChild);
+        return el;
+      }
+      // 2. Below the whole footer, but INSIDE the theme's page container so it
+      //    keeps the cart's own left and right padding.
+      if(parts&&parts.section&&parts.section.parentNode){
+        recsMode='stack';
+        // INSIDE the page container, as its last child - not after it. After it
+        // is outside the padding, which is how the cards ended up flush against
+        // the window edge in the first place. Last child puts the widget below
+        // the totals and Check out while still inside the cart's own inset.
+        // Walk up from the BUTTON, not from the row. On a phone this theme
+        // drops the footer out of flex entirely, so there is no row - and
+        // gating the page-container lookup on it skipped the padding on
+        // exactly the width where the cards were already running to the edge.
+        var pw=recsPageWidth(parts.row||parts.btn);
+        if(pw){pw.appendChild(el);return el;}
+        parts.section.parentNode.insertBefore(el,parts.section.nextSibling);
+        // Nothing to inherit padding from: match the cart's own inset so the
+        // cards never run to the edge of the window.
+        try{
+          var ref=document.querySelector('.cart__footer,#main-cart-items,cart-items');
+          var pad=ref?Math.round(ref.getBoundingClientRect().left):0;
+          if(pad>0)el.style.padding='0 '+pad+'px';
+        }catch(e){}
+        return el;
+      }
+      // No checkout button on the page (an empty cart, an unusual theme):
+      // fall back to the item-anchored mount, which has nothing to push.
+      // <main>-scoped first, unchanged: on Dawn the cart form inside the CLOSED
+      // drawer sits earlier in the DOM, so an unscoped query would mount the
+      // widget somewhere invisible. That scoping is load-bearing, not incidental.
+      var tgt=document.querySelector('main form[action="/cart"]')||document.querySelector('main');
+      if(!tgt){
+        // ...but plenty of themes never emit <main> at all - Aahiya's does not -
+        // and both selectors above then missed, leaving document.body and an
+        // appendChild that put the widget at the very END of the page, below the
+        // footer and copyright where nobody scrolls. Take the first cart form
+        // that is NOT the drawer's copy, which keeps the Dawn guarantee without
+        // depending on a tag the theme may never render.
+        var forms=document.querySelectorAll('form[action="/cart"],form[action^="/cart?"],form[action^="/cart#"]');
+        for(var fi=0;fi<forms.length;fi++){
+          var inDrawer=false;
+          try{inDrawer=!!(forms[fi].closest&&forms[fi].closest(RECS_DRAWER_SEL));}catch(e){}
+          if(!inDrawer){tgt=forms[fi];break;}
+        }
+        if(!tgt)tgt=document.querySelector('.cart__items,.cart-items,#cart,#main-cart-items,[data-cart-items],.shopping-cart');
+      }
+      if(tgt&&tgt.parentNode){tgt.parentNode.insertBefore(el,tgt.nextSibling);return el;}
+      // Last resort is ABOVE the footer, never the end of <body> - a
+      // recommendation nobody reaches is the same as no recommendation.
+      var foot=document.querySelector('footer,.footer,#footer,[class*="site-footer"],[class*="Footer"]');
+      if(foot&&foot.parentNode){foot.parentNode.insertBefore(el,foot);return el;}
+      document.body.appendChild(el);
+      return el;
+    }
+    // Product page: under the buy box (the theme's info column), else right
+    // after the product section. Opt-in per store.
+    if(recsProductPage()&&RECS_SURF.product&&!recsDrawerVisible()){
+      var pf=document.querySelector('form[action*="/cart/add"]');
+      var info=pf&&pf.closest&&pf.closest('.product__info-wrapper,.product__info-container,.product-single__meta,.product__details,.product-info,.product__meta');
+      if(info){info.appendChild(el);return el;}
+      var sec=pf&&pf.closest&&pf.closest('[id^="shopify-section"]');
+      if(sec&&sec.parentNode){sec.parentNode.insertBefore(el,sec.nextSibling);return el;}
+      return null;
+    }
+    var drawer=RECS_SURF.drawer?recsDrawerEl():null;
+    if(drawer){
+      var foot=drawer.querySelector('.drawer__footer,.cart-drawer__footer,[class*="footer"]');
+      if(foot&&foot.parentNode)foot.parentNode.insertBefore(el,foot);
+      else drawer.appendChild(el);
+      return el;
+    }
+    return null;
+  }
+  function recsEsc(s){return String(s||'').replace(/[<>&"]/g,'');}
+  function recsStars(p,C){
+    // The server decides the policy: proof.rating present = show stars;
+    // proof.rating_count present = show the count next to them.
+    if(!(p.proof&&p.proof.rating))return '';
+    var n=Math.min(5,Math.round(p.proof.rating)),s='';for(var i=0;i<5;i++)s+=(i<n?'\u2605':'\u2606');
+    return '<div style="font-size:'+C.star+';margin-top:2px"><span style="color:#e8a33d;letter-spacing:1px">'+s+'</span>'
+      +(p.proof.rating_count?' <span style="opacity:.6;font-size:'+C.starSub+'">'+p.proof.rating.toFixed(1)+' ('+p.proof.rating_count+')</span>':'')+'</div>';
+  }
+  // ONE pill per card. The server already chose the strongest true line for
+  // this shopper (pitch); with no pitch the neutral reason label renders in
+  // grey - a label, never an invented number. Fixed light pastels with dark
+  // text so the pill survives a dark theme's drawer, same as the quote band.
+  // ONE line of proof per card. The product's name and the count carry the
+  // weight; the lead-in stays quiet. Soft tint, hairline border, no shouting.
+  function recsPill(p,C){
+    var pt=p.pitch,css,inner;
+    if(pt&&pt.text){
+      css=(pt.kind==='rel')?'background:#FFF7E8;color:#7A4E12;border:1px solid #F1DDB5':'background:#EDF7F0;color:#1B6B3F;border:1px solid #CDE8D6';
+      inner=pt.anchor
+        ?'<span style="opacity:.8">'+recsEsc(pt.lead||'Bought with your')+'</span> <b style="font-weight:700">'+recsEsc(pt.anchor)+'</b>'+(pt.count?'<span style="opacity:.45"> · </span><b style="font-weight:700;white-space:nowrap">'+pt.count+'×</b>':'')
+        :recsEsc(pt.text);
+    }
+    else if(p.reason_label){inner=recsEsc(p.reason_label);css='background:#F4F4F2;color:#5A5A56;border:1px solid #E6E6E2';}
+    else return '';
+    return '<div style="margin-top:8px"><span style="display:inline-block;max-width:100%;padding:5px 10px;border-radius:9px;font-size:'+C.pill+';font-weight:500;line-height:1.4;letter-spacing:.005em;'+css+'">'+inner+'</span></div>';
+  }
+  // "2h 10m" from minutes; the band re-derives it every minute from the
+  // serve-time value so a tab left open does not promise a cutoff that passed.
+  function recsLeft(mins){mins=Math.max(0,Math.round(mins));var hh=Math.floor(mins/60),mm=mins%60;return (hh?hh+'h ':'')+mm+'m';}
+  try{setInterval(function(){document.querySelectorAll('[data-mm-left]').forEach(function(el){
+    var left=Number(el.getAttribute('data-mm-left'))-(Date.now()-Number(el.getAttribute('data-mm-at')))/60000;
+    if(left<=0){var band=el.closest&&el.closest('div');if(band){band.innerHTML='<span>The cutoff for same-day dispatch has passed for today · order now and it ships on the next dispatch day</span>';}return;}
+    el.textContent=recsLeft(left);});},60000);}catch(e){}
+  function recsMoney(p){if(p.price==null)return '';try{return new Intl.NumberFormat(undefined,{style:'currency',currency:p.currency||'USD',maximumFractionDigits:(p.price%1===0?0:2)}).format(p.price);}catch(e){return (p.currency||'')+' '+p.price;}}
+  // The tenant's offer on this pick, as the promise the discount will keep:
+  // "Add both, save ₹120 · code PAIR10". Only what the tenant entered.
+  function recsOffer(p,C){var o=p.offer;if(!o)return '';var s=o.label||((o.type==='pair'?'Add both, save ':'Save ')+(o.save_amount?recsMoney({price:o.save_amount,currency:p.currency}):(o.save_pct?o.save_pct+'%':'')));
+    if(!s)return '';return '<div style="display:inline-block;margin-top:5px;font-size:'+C.pill+';font-weight:700;color:#1b7d45;background:#e8f5ec;border-radius:8px;padding:2px 8px">'+recsEsc(s)+(o.code?' · code '+recsEsc(o.code):'')+'</div>';}
+  // Button skin. Tenant-set colours win; otherwise sample the theme's OWN
+  // add-to-cart (or checkout) button so ours is indistinguishable from the
+  // store's - stores want the widget to look native, not like an app. When
+  // nothing samples (no button on this page, transparent bg) fall back to a
+  // quiet outline that inherits the theme's text colour.
+  function recsBtnCss(d){
+    var bg=(d.btn&&d.btn.bg)||'',fg=(d.btn&&d.btn.fg)||'',rad='8px';
+    if(!bg){try{
+      var cand=document.querySelector('form[action*="/cart/add"] [type="submit"],button[name="add"],.product-form__submit,button[name="checkout"],.cart__checkout-button,.button--primary');
+      if(cand){var cs=getComputedStyle(cand);var cbg=cs.backgroundColor;
+        if(cbg&&cbg!=='transparent'&&cbg.indexOf('rgba(0, 0, 0, 0)')<0){bg=cbg;if(!fg)fg=cs.color;rad=cs.borderRadius||rad;}}
+    }catch(e){}}
+    if(bg)return 'background:'+bg+';color:'+(fg||'#fff')+';border:0;border-radius:'+rad;
+    return 'background:transparent;color:inherit;border:1px solid currentColor;border-radius:8px';
+  }
+  function recsLogEvent(action,pid){try{fetch(B+'/recs/'+K+'/event',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
+    body:JSON.stringify({id:MM,action:action,product_id:pid})});}catch(e){}}
+  var recsLast='';
+  // Rotate a phone, or drag a desktop window narrow, and the seat beside the
+  // totals stops existing - a widget left wedged in a column that is no longer
+  // there is worse than one that never used it. Re-decide on resize, and only
+  // when the answer actually changes, so a scroll-driven resize on mobile
+  // browsers does not rebuild the widget every few pixels.
+  var recsRzT=null;
+  function recsRemount(){
+    var b=document.getElementById(RECS_BOX_ID);if(!b||!recsCartPage())return;
+    var p=recsCheckoutParts();
+    var want=(p&&p.row&&p.block&&p.free>=RECS_SIDE_MIN)?'side':'stack';
+    if(want===recsMode)return;
+    if(b.parentNode)b.parentNode.removeChild(b);
+    recsLast='';recsRender();
+  }
+  try{window.addEventListener('resize',function(){clearTimeout(recsRzT);recsRzT=setTimeout(recsRemount,250);});}catch(e){}
+  function recsRender(){recsCartIds(function(ids){
+    var onProduct=recsProductPage()&&RECS_SURF.product&&RECS_PID;
+    var cartEmpty=!ids.length;
+    if(onProduct)ids=[RECS_PID].concat(ids.filter(function(x){return x!==RECS_PID;}));
+    var sig=ids.join(',');var box=document.getElementById(RECS_BOX_ID);if(sig===recsLast&&box&&box.childNodes.length)return;
+    // Resolve the host BEFORE fetching: no surface on this page means no
+    // request and no serve row - a serve logged where nothing could ever be
+    // seen would quietly corrupt the holdout lift math.
+    var host=recsHost();if(!host)return;recsLast=sig;
+    fetch(B+'/recs/'+K+'?pids='+encodeURIComponent(sig)+'&id='+encodeURIComponent(MM||'')+'&ctx='+(recsCartPage()?'cart':onProduct?'product':'drawer')+(RECS_TOTAL!=null?'&total='+encodeURIComponent(RECS_TOTAL):''))
+      .then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.enabled||d.holdout||(!(d.items||[]).length&&!(d.sets||[]).length)){host.innerHTML='';return;}
+        var btnCss=recsBtnCss(d);
+        // Two layouts for two very different rooms. The cart PAGE has the
+        // full width, so it gets the grid at full type scale. The DRAWER's
+        // first job is showing the shopper what they just added - a 2x2 grid
+        // there buried the cart items below the fold. In the drawer the
+        // widget is a single-row swipe strip of compact cards: a third of
+        // the height, a half-visible card as the scroll hint, items stay king.
+        var inDrawer=!!(host.closest&&host.closest('cart-drawer,#CartDrawer,.cart-drawer,.drawer--cart,#cart-drawer,[id*="CartDrawer"]'));
+        var C=inDrawer
+          ?{pad:'12px',head:'14px',headMb:'8px',grid:'display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px',
+            card:'flex:0 0 124px;display:flex;flex-direction:column',title:'12px',price:'12.5px',star:'11px',starSub:'10.5px',pill:'10.5px',
+            btnFont:'11.5px',btnPad:'6px 0',quote:'11.5px',quotePad:'8px 12px',imgMax:'',maxW:''}
+          // The cart page sits BELOW the checkout block, so it spans the
+          // cart's own width like any other section of the page - a 640px box
+          // centred under a full-width cart read as a floating island that
+          // belonged to nobody. Width is capped per CARD instead: auto-fill
+          // clamped to 190px keeps a square image square (no letterbox crop of
+          // a tall jar) and bounds the card's height on any cart width, and
+          // justify-content:start packs four products left instead of
+          // stretching them across a 1450px row.
+          :{pad:'18px 20px',head:'16px',headMb:'14px',
+            grid:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:22px 18px',
+            card:'display:flex;flex-direction:column;max-width:300px',title:'14px',price:'14.5px',star:'13px',starSub:'12px',pill:'12px',
+            btnFont:'13.5px',btnPad:'9px 0',quote:'13.5px',quotePad:'12px 16px',
+            imgMax:'',maxW:''};
+        var h='<div style="margin:16px '+(C.maxW?'auto':'0')+';'+(C.maxW?'max-width:'+C.maxW+';':'')+'padding:'+C.pad+';border:1px solid rgba(0,0,0,.08);border-radius:12px;font-family:inherit">'
+          // On a product page with nothing in the cart, "your cart" names a
+          // cart the shopper does not have: the product-page title is used.
+          +'<div style="font-weight:600;font-size:'+C.head+';margin-bottom:'+(d.nudge&&d.nudge.free_shipping?'4px':C.headMb)+'">'+recsEsc((onProduct&&cartEmpty&&d.title_product)?d.title_product:d.title)+'</div>';
+        // The free-shipping gap, from the tenant's threshold and this cart's
+        // total: the one line that gives a reason to add something now.
+        if(d.nudge&&d.nudge.free_shipping){var fs=d.nudge.free_shipping;
+          h+='<div style="font-size:'+C.pill+';font-weight:600;color:#a6550f;background:#fdf3ea;border-radius:8px;padding:6px 10px;margin-bottom:'+(d.promise?'6px':C.headMb)+'">Add '+recsMoney({price:fs.gap,currency:fs.currency})+' more for free shipping</div>';}
+        // The dispatch promise, computed on the server in the store's own
+        // time zone from the cutoff the tenant set: a reason to add NOW.
+        // A spend-more unlock the store runs in Shopify: same band, the reward named.
+        if(d.nudge&&d.nudge.unlock){var ul=d.nudge.unlock;
+          h+='<div style="font-size:'+C.pill+';font-weight:600;color:#a6550f;background:#fdf3ea;border-radius:8px;padding:6px 10px;margin-bottom:'+(d.promise?'6px':C.headMb)+'">Add '+recsMoney({price:ul.gap,currency:ul.currency})+' more for '+recsEsc(ul.label)+(ul.code?' · code '+recsEsc(ul.code):'')+'</div>';}
+        // The dispatch promise as a band the eye lands on: a clock, the time
+        // left in bold, and what it buys ("ships today"). Green while the
+        // cutoff is still ahead; neutral once it has passed, with the next
+        // dispatch day named. The minutes count down in the page.
+        if(d.promise&&d.promise.text){var pr=d.promise;
+          var prCss=pr.today?'background:#EDF7F0;color:#1B6B3F;border:1px solid #CDE8D6':'background:#F4F4F2;color:#3F3F3B;border:1px solid #E6E6E2';
+          var clock='<svg viewBox="0 0 24 24" width="15" height="15" style="flex:0 0 auto;margin-right:8px" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+          var prBody=pr.today
+            ?'Order in <b data-mm-left="'+(pr.minutes_left||0)+'" data-mm-at="'+Date.now()+'" style="font-weight:700">'+recsEsc(recsLeft(pr.minutes_left||0))+'</b> and it ships <b style="font-weight:700">today</b><span style="opacity:.65"> · cutoff '+recsEsc(pr.cutoff_label||'')+'</span>'
+            :'Order now and it ships <b style="font-weight:700">'+recsEsc(pr.next_day||pr.ships||'')+'</b>'+(pr.cutoff_label?'<span style="opacity:.65"> · orders before '+recsEsc(pr.cutoff_label)+' leave the same day</span>':'');
+          h+='<div style="display:flex;align-items:center;font-size:'+C.pill+';border-radius:9px;padding:7px 11px;margin-bottom:'+C.headMb+';'+prCss+'">'+clock+'<span>'+prBody+'</span></div>';}
+        // The reorder pick is not one card among four: it is the shopper's own
+        // product, running out. It gets a strip of its own above the grid.
+        var reorderPick=(d.items||[]).filter(function(p){return p.reorder;})[0]||null;
+        if(reorderPick){var rp=reorderPick,ro=rp.reorder;
+          var when=ro.basis==='store'?'most people reorder at '+ro.interval_days+' days':'it usually lasts about '+ro.interval_days+' days';
+          var canAddR=RECS_SHOP&&rp.handle;
+          h+='<div style="display:flex;align-items:center;gap:12px;border:1px solid #F1DDB5;background:#FFF9EE;border-radius:12px;padding:10px 12px;margin-bottom:'+C.headMb+'">'
+            +(rp.image?'<a href="'+(rp.url||'#')+'" data-mm-rec="'+rp.id+'" style="flex:0 0 auto"><img src="'+rp.image+'" alt="" loading="lazy" style="width:56px;height:56px;object-fit:cover;border-radius:9px;display:block"></a>':'')
+            +'<div style="flex:1 1 auto;min-width:0">'
+              +'<div style="font-size:'+C.pill+';font-weight:700;color:#7A4E12;text-transform:uppercase;letter-spacing:.06em">Running low?</div>'
+              +'<div style="font-size:'+C.title+';font-weight:600;line-height:1.3;margin-top:2px">'+recsEsc(rp.title)+'</div>'
+              +'<div style="font-size:'+C.pill+';color:#5A5A56;margin-top:2px">You bought it <b style="color:#111">'+ro.days_since+' days ago</b> · '+recsEsc(when)+(rp.price!=null?' · '+recsMoney(rp):'')+'</div>'
+            +'</div>'
+            +(canAddR?'<button type="button" data-mm-add="'+rp.id+'" data-mm-h="'+recsEsc(rp.handle)+'" data-mm-url="'+(rp.url||'#')+'" data-mm-code="'+recsEsc(rp.offer&&rp.offer.code||'')+'"'
+              +' style="flex:0 0 auto;padding:'+C.btnPad+' ;padding-left:16px;padding-right:16px;'+btnCss+';font-family:inherit;font-size:'+C.btnFont+';font-weight:600;cursor:pointer;white-space:nowrap">Reorder</button>':'')
+          +'</div>';}
+        // Never a card alone on a second row. Whatever the container - the
+        // cart page, a wide drawer, a theme's own slot - show only as many
+        // cards as fit one row at the card's minimum width; the server's
+        // max is a ceiling, the row is the limit.
+        var sets=d.sets||[],items=d.items||[];
+        if(!inDrawer){
+          var wAvail=(host.clientWidth||(host.parentNode&&host.parentNode.clientWidth)||0)-40;
+          var cols=wAvail>0?Math.max(2,Math.floor((wAvail+18)/(150+18))):99;
+          sets=sets.slice(0,Math.max(0,cols-1));items=items.slice(0,Math.max(1,cols-sets.length));
+        }
+        // The reorder pick already has its strip above; it leaves the grid.
+        items=items.filter(function(p){return !p.reorder;});
+        h+='<div style="'+C.grid+'">';
+        // A started set first: one card, the missing items, one button.
+        sets.forEach(function(st){
+          var imgs=st.items.slice(0,4).map(function(i){return '<img src="'+i.image+'" alt="" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px">';}).join('');
+          var cols=st.items.length>1?'1fr 1fr':'1fr';
+          var sv=st.offer&&(st.offer.save_amount?('Save '+recsMoney({price:st.offer.save_amount,currency:st.currency})):(st.offer.save_pct?('Save '+st.offer.save_pct+'%'):''));
+          var canAddSet=RECS_SHOP&&st.items.every(function(i){return !!i.handle;});
+          h+='<div style="'+C.card+'" data-mm-setcard="'+recsEsc(st.id)+'">'
+            +'<div style="display:grid;grid-template-columns:'+cols+';gap:4px;border-radius:8px;overflow:hidden">'+imgs+'</div>'
+            +'<div style="font-size:'+C.title+';font-weight:600;margin-top:6px;line-height:1.35">'+recsEsc(st.label)+'</div>'
+            +'<div style="font-size:'+C.pill+';color:#555;margin-top:2px">You have '+st.in_cart+' of '+st.size+' · add the rest for '+recsMoney({price:st.missing_total,currency:st.currency})+'</div>'
+            +(sv?'<div style="display:inline-block;margin-top:5px;font-size:'+C.pill+';font-weight:700;color:#1b7d45;background:#e8f5ec;border-radius:8px;padding:2px 8px">'+recsEsc(sv)+(st.offer.code?' · code '+recsEsc(st.offer.code):'')+'</div>':'')
+            +(canAddSet?'<button type="button" data-mm-addset="'+recsEsc(st.items.map(function(i){return i.handle;}).join(','))+'" data-mm-url="'+(st.items[0].url||'#')+'" data-mm-code="'+recsEsc(st.offer&&st.offer.code||'')+'"'
+              +' style="margin-top:7px;width:100%;padding:'+C.btnPad+';'+btnCss+';font-family:inherit;font-size:'+C.btnFont+';font-weight:600;cursor:pointer">Add the set</button>':'')
+            +'</div>';
+        });
+        items.forEach(function(p){
+          var canAdd=RECS_SHOP&&p.handle;
+          h+='<div data-mm-card="'+p.id+'" data-mm-cur="'+recsEsc(p.currency||'')+'" style="'+C.card+'">'
+            +'<a href="'+(p.url||'#')+'" data-mm-rec="'+p.id+'" style="text-decoration:none;color:inherit;display:block;flex:1">'
+            +(p.image?'<img src="'+p.image+'" alt="" loading="lazy" style="width:100%;aspect-ratio:1;'+(C.imgMax?'max-height:'+C.imgMax+';':'')+'object-fit:cover;border-radius:12px;background:#F6F6F3;display:block">':'')
+            +'<div style="font-size:'+C.title+';font-weight:600;margin-top:10px;line-height:1.3;letter-spacing:-.005em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+recsEsc(p.title)+'</div>'
+            +recsStars(p,C)
+            +'<div data-mm-price="1" style="font-size:'+C.price+';font-weight:700;margin-top:4px;letter-spacing:-.01em">'+recsMoney(p)+'</div>'
+            +recsPill(p,C)
+            +recsOffer(p,C)
+            +'</a>'
+            +(canAdd?'<button type="button" data-mm-add="'+p.id+'" data-mm-h="'+recsEsc(p.handle)+'" data-mm-url="'+(p.url||'#')+'" data-mm-code="'+recsEsc(p.offer&&p.offer.code||'')+'"'
+              +' style="margin-top:9px;width:100%;padding:'+C.btnPad+';'+btnCss+';font-family:inherit;font-size:'+C.btnFont+';font-weight:600;letter-spacing:.01em;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease">Add to cart</button>':'')
+            +'</div>';
+        });
+        h+='</div>';
+        // One real customer's words under the grid - a review on a shown
+        // product first, else the tenant's store-wide quote (d.review).
+        // Absent when the store has none; never invented.
+        var rv=null;for(var i=0;i<items.length;i++){var it=items[i];if(it.review&&it.review.text){rv=it.review;break;}}
+        if(!rv&&d.review&&d.review.text)rv=d.review;
+        if(rv){
+          // Same pastel band the recovery emails use (#f4f7ef / sage accent).
+          // Colours are explicit, not inherited - a fixed light background
+          // needs dark text even inside a dark theme's drawer.
+          var st='';if(rv.rating){var ns=Math.min(5,Math.round(rv.rating));for(var k2=0;k2<ns;k2++)st+='\u2605';}
+          h+='<div style="background:#f4f7ef;border-radius:10px;padding:'+C.quotePad+';margin-top:12px;font-size:'+C.quote+';color:#333;line-height:1.5">'
+            +(st?'<span style="color:#e8a33d;letter-spacing:1px">'+st+'</span> ':'')
+            +'<span style="font-style:italic">\u201C'+recsEsc(rv.text)+'\u201D</span>'
+            +(rv.name?'<span style="font-weight:700;color:#555"> \u2014 '+recsEsc(rv.name)+'</span>':'')
+            +'</div>';
+        }
+        h+='</div>';
+        host.innerHTML=h;
+        host.querySelectorAll('[data-mm-rec]').forEach(function(a){a.addEventListener('click',function(){
+          recsLogEvent('click',a.getAttribute('data-mm-rec'));
+        });});
+        recsTellTruth(host,C);
+        // Direct add. A single-variant product goes straight into the cart. A
+        // multi-variant product is added at the size the shopper picked in the
+        // card itself, so the journey never goes backwards to a product page -
+        // and never forwards with a size we chose on their behalf.
+        host.querySelectorAll('[data-mm-add]').forEach(function(b){b.addEventListener('click',function(ev2){
+          ev2.preventDefault();ev2.stopPropagation();
+          var pid=b.getAttribute('data-mm-add'),hd=b.getAttribute('data-mm-h'),url=b.getAttribute('data-mm-url');
+          var card=b.closest?b.closest('[data-mm-card]'):null;
+          var sel=card?card.querySelector('[data-mm-var]'):null;
+          // Nothing picked yet: ask for it right here. Not an alert, not a
+          // trip to the product page - the control they need is already on
+          // screen, so point at it and let them answer in one tap.
+          if(sel&&!sel.value){
+            sel.style.borderColor='#c0392b';
+            try{sel.focus();}catch(e){}
+            return;
+          }
+          b.disabled=true;var t0=b.textContent;b.textContent='Adding\u2026';
+          recsProduct(hd).then(function(prod){
+            // AVAILABLE variants, not total. The test was variants.length!==1,
+            // so a product with four sizes of which three are sold out went to
+            // its own page instead of adding the only one anybody could buy.
+            // On this store 4 of 5 products carry several sizes, so almost
+            // every "Add to cart" navigated away instead of adding - which is
+            // the bug as reported.
+            var vs=recsBuyable(prod);
+            var v=null;
+            if(sel&&sel.value){for(var vi=0;vi<vs.length;vi++)if(String(vs[vi].id)===String(sel.value))v=vs[vi];}
+            if(!v&&vs.length===1)v=vs[0];
+            // No picker rendered yet and more than one thing to choose from -
+            // the only honest move left is the product page.
+            if(!v){location.href=url;return null;}
+            return fetch('/cart/add.js',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+              body:JSON.stringify({id:v.id,quantity:1})}).then(function(r2){
+                if(!r2.ok)throw 0;
+                b.textContent='Added \u2713';
+                recsLogEvent('add_to_cart',pid);
+                // The offer's code, applied the way Shopify applies a shared
+                // discount link: /discount/CODE sets the checkout cookie.
+                var code=b.getAttribute('data-mm-code');
+                if(code){try{fetch('/discount/'+encodeURIComponent(code),{credentials:'same-origin'}).catch(function(){});}catch(e){}}
+                // The theme's own cart UI (item list, header count, drawer)
+                // was bypassed, so a reload is the only theme-agnostic way to
+                // show true state. The event log uses keepalive and survives it.
+                try{document.dispatchEvent(new CustomEvent('cart:refresh',{bubbles:true}));}catch(e){}
+                setTimeout(function(){location.reload();},450);
+              });
+          }).catch(function(){b.disabled=false;b.textContent=t0;location.href=url;});
+        });});
+        // The set: every missing item must be single-variant, then ONE
+        // /cart/add.js call with all of them; otherwise open the first product.
+        host.querySelectorAll('[data-mm-addset]').forEach(function(b){b.addEventListener('click',function(ev2){
+          ev2.preventDefault();ev2.stopPropagation();
+          var hs=b.getAttribute('data-mm-addset').split(','),url=b.getAttribute('data-mm-url');
+          b.disabled=true;var t0=b.textContent;b.textContent='Adding…';
+          Promise.all(hs.map(function(hd){return recsProduct(hd);})).then(function(prods){
+            var items=[];for(var i=0;i<prods.length;i++){var vs=recsBuyable(prods[i]);if(vs.length!==1){location.href=url;return null;}items.push({id:vs[0].id,quantity:1});}
+            return fetch('/cart/add.js',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({items:items})}).then(function(r2){
+              if(!r2.ok)throw 0;
+              b.textContent='Added ✓';
+              hs.forEach(function(hd,i){recsLogEvent('add_to_cart',String(prods[i]&&prods[i].id||hd));});
+              var code=b.getAttribute('data-mm-code');
+              if(code){try{fetch('/discount/'+encodeURIComponent(code),{credentials:'same-origin'}).catch(function(){});}catch(e){}}
+              setTimeout(function(){location.reload();},450);
+            });
+          }).catch(function(){b.disabled=false;b.textContent=t0;location.href=url;});
+        });});
+      }).catch(function(){});
+  });}
+  // Refresh when the cart changes: same AJAX seams the attribute writer uses,
+  // hooked independently so recs works even where cart_attr is off. Our own
+  // /cart/add.js from the Add button flows through this too - the widget
+  // re-renders with the new item as an anchor.
+  try{var _rf=window.fetch;window.fetch=function(u){var pr=_rf.apply(this,arguments);
+    try{var su=(typeof u==='string')?u:((u&&u.url)||'');
+      if(/\/cart\/(add|change|clear|update)(\.js)?/.test(su)&&!/mm-recs/.test(su))pr.then(function(){setTimeout(recsRender,350);setTimeout(recsRender,1400);},function(){});}catch(e){}
+    return pr;};}catch(e){}
+  // The drawer renders when it OPENS, not only when the cart changes. Clicking
+  // the cart icon fires no cart request, so the fetch hook above never sees it
+  // - the widget was only appearing after an add-to-cart, never on a plain
+  // open. Watch the drawer's attributes (Dawn toggles a class) plus a
+  // catch-all click listener for themes that open it from a body class, and
+  // render only once it is actually visible - so a serve is never logged into
+  // a drawer nobody opened.
+  // Open-state first, geometry second. Dawn marks the open drawer with class
+  // "active"; other themes use "open"/"is-open" or the open attribute. Some
+  // themes' <cart-drawer> host element is a ZERO-SIZE wrapper around a
+  // fixed-position inner panel, so a pure getBoundingClientRect gate would
+  // never fire there - the state markers are the truth, the rect is only the
+  // fallback for themes that mark nothing.
+  function recsDrawerVisible(){var d2=recsDrawerEl();if(!d2)return false;
+    try{
+      var cl=String(d2.className||'');
+      if(/(^|\s)(active|open|opened|is-open|drawer--open|visible|is-visible)(\s|$)/.test(cl))return true;
+      if(d2.hasAttribute('open'))return true;
+      if(d2.getAttribute('aria-hidden')==='false')return true;
+      var cs=getComputedStyle(d2);if(cs.visibility==='hidden'||cs.display==='none')return false;
+      return d2.getBoundingClientRect().width>10;}catch(e){return false;}}
+  function recsWatchDrawer(){var d2=recsDrawerEl();if(!d2)return;
+    var kick=function(){if(recsDrawerVisible())recsRender();};
+    try{new MutationObserver(kick).observe(d2,{attributes:true});}catch(e){}
+    try{document.addEventListener('click',function(e){
+      var t=e.target&&e.target.closest&&e.target.closest('a[href$="/cart"],a[href*="/cart?"],#cart-icon-bubble,[data-cart-drawer-toggle],.js-drawer-open-cart');
+      if(t){setTimeout(kick,400);setTimeout(kick,1000);}},true);}catch(e){}}
+  try{if(recsCartPage()||document.getElementById(RECS_BOX_ID))setTimeout(recsRender,300);}catch(e){}
+  try{if(recsProductPage()&&RECS_SURF.product)recsProductId(function(id){RECS_PID=id;if(id)setTimeout(recsRender,300);});}catch(e){}
+  try{recsWatchDrawer();}catch(e){}
+  // ── recovery popup ──────────────────────────────────────────────────────
+  // Dormant until: cart activity this session + an exit signal + not shown
+  // recently + no recent purchase. One GET decides which face shows; a store
+  // with the popup disabled pays one fetch per triggered session, nothing per
+  // pageview. Never on checkout (Shopify locks it anyway).
+  (function(){
+    if(/\/(checkouts?|checkout)\b/.test(location.pathname))return;
+    function g(k){try{return Number(localStorage.getItem(k)||0)}catch(e){return 0}}
+    function m(k){try{localStorage.setItem(k,String(Date.now()))}catch(e){}}
+    var armed=true;
+    function eligible(sd){var now=Date.now();
+      if(!g('mmpop_cart')||now-g('mmpop_cart')>21600000)return false;      // basket in last 6h
+      if(g('mmpop_done')&&now-g('mmpop_done')<2592000000)return false;      // bought in last 30d
+      if(g('mmpop_at')&&now-g('mmpop_at')<(sd||3)*86400000)return false;    // shown recently
+      return true;}
+    var CSS='';function css(){return CSS;}
+    function close(host){try{host.remove()}catch(e){}}
+    function shell(inner){var host=document.createElement('div');var r=host.attachShadow?host.attachShadow({mode:'open'}):host;
+      r.innerHTML='<style>'+css()+'</style><div class="mmpop-back"><div class="mmpop-card"><button class="mmpop-x" aria-label="Close">&times;</button><div class="mmpop-body">'+inner+'</div></div></div>';
+      document.body.appendChild(host);
+      r.querySelector('.mmpop-x').addEventListener('click',function(){close(host)});
+      r.querySelector('.mmpop-back').addEventListener('click',function(e){if(e.target===e.currentTarget)close(host)});
+      return {host:host,root:r};}
+    function esc(t){return String(t||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]});}
+    function show(j){m('mmpop_at');if(j.css)CSS=j.css;
+      if(j.show==='coupon'){shell(j.html);return;}
+      var c=j.capture||{};
+      var ui=shell(j.html);
+      var r=ui.root,err=r.querySelector('.mmpop-err');
+      r.querySelector('.mmpop-btn').addEventListener('click',function(){
+        var em=r.querySelectorAll('.mmpop-in')[0].value.trim(),phv=r.querySelectorAll('.mmpop-in')[1].value.trim(),
+            ok=r.querySelector('.mmpop-cons input').checked,btn=this;
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)&&phv.replace(/\D/g,'').length<8){err.textContent='Enter a valid email or phone number';err.style.display='block';return;}
+        if(!ok){err.textContent='Please tick the consent box';err.style.display='block';return;}
+        err.style.display='none';btn.disabled=true;btn.textContent='...';
+        fetch(B+'/popup/'+K+'/capture',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({cid:MM,email:em,phone:phv,consent:true,page:location.href})})
+          .then(function(x){return x.json()}).then(function(res2){
+            if(res2&&res2.ok&&res2.html){r.querySelector('.mmpop-body').innerHTML=res2.html;}
+            else{err.textContent=(res2&&res2.error)||'Something went wrong - try again';err.style.display='block';btn.disabled=false;btn.textContent=esc(c.button);}})
+          .catch(function(){err.textContent='Network error - try again';err.style.display='block';btn.disabled=false;btn.textContent=esc(c.button);});});}
+    function fire(){if(!armed)return;armed=false;
+      fetch(B+'/popup/'+K+'?cid='+encodeURIComponent(MM)).then(function(x){return x.json()})
+        .then(function(j){if(j&&j.show&&eligible(j.suppress_days))show(j);})
+        .catch(function(){});}
+    // exit intent on desktop; on touch, a beat after the basket forms
+    document.addEventListener('mouseout',function(e){
+      if(e.clientY<=0&&!e.relatedTarget&&eligible())fire();});
+    if('ontouchstart' in window){setInterval(function(){
+      var c=g('mmpop_cart');if(c&&Date.now()-c>20000&&eligible())fire();},5000);}
+  })();
+  // ─── hidden visitor-id field ───────────────────────────────────────────────
+  // Spliced from id-field-fill.template.js, the same text mm-tracking.js
+  // gets: puts MM into a CRM form's hidden visitor-id field (a LeadSquared
+  // form's mx_Cookiebees_Visitor_Id) and touches nothing else on the page.
+/**
+ * FILL A CRM FORM'S HIDDEN VISITOR-ID FIELD - one source, spliced into both
+ * beacons (mm-tracking.js for lead sites, px.js for stores), the same way the
+ * tag observer is.
+ *
+ * WHY. A lead captured by ANOTHER system's form on the tenant's site (a
+ * LeadSquared embedded form today) reaches Cookiebees through that CRM, and
+ * the CRM knows nothing about the visit: no click id, no _fbp, no UTMs. Ad
+ * platforms cannot match a conversion without those. If that form carries a
+ * hidden field for our visitor id, the CRM stores the id with the lead, sends
+ * it back to us, and services/leadsquared.js joins the lead to the visit
+ * through identityCookies.forLead. This script's only job is to put the id in
+ * that field.
+ *
+ * WHAT IT TOUCHES, AND WHAT IT REFUSES TO.
+ *   - Only <input> elements whose name, id or data-schemaname is EXACTLY one
+ *     of the names below (case-insensitive), or that carry
+ *     data-cookiebees="visitor_id". Nothing else on the page is read or
+ *     written. A tenant with a different column name adds it to the install
+ *     tag: data-mm-id-field="mx_My_Field" (comma-separated for several).
+ *   - Only an EMPTY field, or one already holding a visitor id of ours. A
+ *     value somebody typed is never overwritten.
+ *   - It never submits, never reads other fields, never posts anything.
+ *
+ * WHEN. On load, on DOM changes for the first 60 seconds (LeadSquared renders
+ * its form after the page), and on focus and submit of any form (catches a
+ * form opened later in a popup). All three are cheap: one querySelectorAll
+ * over a short selector.
+ *
+ * React-controlled inputs ignore a plain `.value =`, so the value is set
+ * through the native setter and an input + change event is dispatched, which
+ * is what those forms listen for.
+ *
+ * The host provides H.id() (the durable visitor id) and H.names (extra field
+ * names from the install tag). Start it with MM_FILL_ID_FIELDS(H).
+ */
+function MM_FILL_ID_FIELDS(H) {
+  try {
+    var NAMES = ['mx_Cookiebees_Visitor_Id', 'cookiebees_visitor_id', 'cb_visitor_id'];
+    var extra = H && H.names ? String(H.names).split(',') : [];
+    for (var i = 0; i < extra.length; i++) {
+      var n = String(extra[i] || '').replace(/[^A-Za-z0-9_-]/g, '');
+      if (n) NAMES.push(n);
+    }
+    var LOWER = {};
+    for (var j = 0; j < NAMES.length; j++) LOWER[NAMES[j].toLowerCase()] = 1;
+    var OURS = /^(IMP[A-Za-z0-9]{4,}|mmc_[A-Za-z0-9]{4,})$/;
+    var setter = null;
+    try { setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; } catch (_) {}
+
+    function wanted(el) {
+      if (!el || el.tagName !== 'INPUT') return false;
+      if ((el.getAttribute('data-cookiebees') || '').toLowerCase() === 'visitor_id') return true;
+      var keys = [el.getAttribute('name'), el.id, el.getAttribute('data-schemaname'), el.getAttribute('data-schema-name')];
+      for (var k = 0; k < keys.length; k++) if (keys[k] && LOWER[String(keys[k]).toLowerCase()]) return true;
+      return false;
+    }
+    function put(el, id) {
+      var cur = el.value || '';
+      if (cur === id) return;
+      if (cur && !OURS.test(cur)) return;           // someone else's value: leave it
+      try { if (setter) setter.call(el, id); else el.value = id; } catch (_) { el.value = id; }
+      try { el.setAttribute('value', id); } catch (_) {}
+      try {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      } catch (_) {}
+    }
+    function fill(root) {
+      var id = '';
+      try { id = H.id(); } catch (_) { return; }
+      if (!id) return;
+      var scope = root && root.querySelectorAll ? root : document;
+      var list = scope.querySelectorAll('input');
+      for (var x = 0; x < list.length; x++) if (wanted(list[x])) put(list[x], id);
+    }
+
+    fill(document);
+    document.addEventListener('focusin', function (e) {
+      try { var f = e.target && e.target.form; if (f) fill(f); } catch (_) {}
+    }, true);
+    document.addEventListener('submit', function (e) {
+      try { if (e.target) fill(e.target); } catch (_) {}
+    }, true);
+    if (typeof MutationObserver === 'function') {
+      var pending = false;
+      var mo = new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        setTimeout(function () { pending = false; fill(document); }, 250);
+      });
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+      setTimeout(function () { try { mo.disconnect(); } catch (_) {} }, 60000);
+    }
+  } catch (_) { /* never break the host page */ }
+}
+
+  try{MM_FILL_ID_FIELDS({id:function(){return MM;},names:null});}catch(e){}
+  // ─── call tracking number swap ─────────────────────────────────────────────
+  // Spliced from call-swap.template.js, the same text mm-tracking.js gets.
+  /**
+   * CALL TRACKING NUMBER SWAP - one source, spliced into both beacons
+   * (mm-tracking.js for lead sites, px.js for stores), like the tag observer.
+   *
+   * WHAT IT DOES. On a page that shows a phone number, asks which tracked
+   * number this visitor session should see (services/callTracking.numberFor)
+   * and puts it in place of the site's own number, so a call can be tied back
+   * to the visit: its source, campaign and click ids.
+   *
+   * WHAT IT TOUCHES, AND NOTHING ELSE.
+   *   - <a href="tel:..."> links whose number is one of the site numbers the
+   *     workspace listed (all tel: links when none are listed): the href, and
+   *     the link text when the text IS that number.
+   *   - Any element marked data-cb-call: its text (and href, on a link).
+   *     data-cb-call="href" changes the link only, never the text.
+   * A page with no phone link and no marked element sends nothing at all.
+   * A workspace without call tracking answers { swap: false } and nothing
+   * changes. Any failure leaves the site's own number showing.
+   */
+  function MM_CALL_SWAP(o) {
+    try {
+      if (!o || !o.key || !o.base || !document.querySelectorAll) return;
+      var SEL = 'a[href^="tel:"],[data-cb-call]';
+      var CACHE = 'cb_cn';
+      var answer = null;
+      var asked = false;
+      var d10 = function (s) { return String(s || '').replace(/\D/g, '').slice(-10); };
+      var list = function () { try { return document.querySelectorAll(SEL); } catch (e) { return []; } };
+
+      var apply = function (a) {
+        if (!a || !a.swap || !a.number) return;
+        var targets = a.targets || [];
+        var els = list();
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          try {
+            var mark = el.getAttribute('data-cb-call');
+            if (mark !== null) {
+              if (el.tagName === 'A') el.setAttribute('href', 'tel:' + a.number);
+              // Only when it differs: writing text is itself a DOM change, and
+              // the observer below would otherwise answer it for ever.
+              if (mark !== 'href' && !el.children.length && el.textContent !== (a.display || a.number)) el.textContent = a.display || a.number;
+              continue;
+            }
+            var href = el.getAttribute('href') || '';
+            var cur = d10(href);
+            if (!cur || cur === d10(a.number)) continue;
+            if (targets.length && targets.indexOf(cur) === -1) continue;
+            el.setAttribute('href', 'tel:' + a.number);
+            if (!el.children.length && d10(el.textContent) === cur) el.textContent = a.display || a.number;
+          } catch (e) { /* one odd element never stops the rest */ }
+        }
+      };
+
+      var ask = function () {
+        if (asked || !list().length) return false;
+        asked = true;
+        var sid = '';
+        try { sid = o.sid ? o.sid() : ''; } catch (e) {}
+        // The number this session already has, shown at once so the page does
+        // not flick from one number to another; the request below renews it.
+        try {
+          var c = JSON.parse(sessionStorage.getItem(CACHE) || 'null');
+          if (c && c.sid === sid && c.exp > Date.now()) { answer = c.a; apply(answer); }
+        } catch (e) {}
+        var attrs = {};
+        try { attrs = o.data ? (o.data() || {}) : {}; } catch (e) {}
+        var body = JSON.stringify({ id: o.id ? o.id() : null, sid: sid, a: attrs });
+        try {
+          fetch(o.base + '/cn/' + encodeURIComponent(o.key), {
+            method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: body, keepalive: true, credentials: 'omit'
+          }).then(function (r) { return r.json(); }).then(function (a) {
+            answer = a;
+            try { sessionStorage.setItem(CACHE, JSON.stringify({ sid: sid, a: a, exp: Date.now() + 10 * 60000 })); } catch (e) {}
+            apply(a);
+          }).catch(function () {});
+        } catch (e) {}
+        return true;
+      };
+
+      // Now, or as soon as a phone number appears (themes and page builders
+      // render late), and on links added afterwards, for the first minute.
+      if (!ask() && document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { ask(); });
+      }
+      if (window.MutationObserver) {
+        var mo = new MutationObserver(function () { if (!ask() && answer) apply(answer); });
+        mo.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(function () { try { mo.disconnect(); } catch (e) {} }, 60000);
+      }
+    } catch (e) { /* the swap must never take the beacon down with it */ }
+  }
+
+  try{MM_CALL_SWAP({key:K,base:T,id:function(){return MM;},sid:sid,data:track});}catch(e){}
+
+  // ─── the tag observer ─────────────────────────────────────────────────────
+  // Spliced from tag-observer.template.js, the same text mm-tracking.js gets,
+  // so the vendor list this store is judged against is the vendor list every
+  // other store is judged against. Wrapped because a monitor that throws must
+  // never take the beacon - and with it the store's own attribution - down.
+/**
+ * THE TAG OBSERVER - one source, spliced into whichever beacon is on the page.
+ *
+ * This used to live inside mm-tracking.js, which is the LEAD beacon. Every
+ * ecommerce workspace loads px.js instead, so the monitor was unreachable on
+ * exactly the stores it was built for: GirOrganic and WeightWorld could not
+ * have switched it on if they had wanted to. Copying it into px.js would have
+ * meant two vendor lists drifting apart within a month, which is the failure
+ * this product exists to detect, so instead there is one file and both hosts
+ * splice it in at render time. No extra request: it is inlined, not fetched.
+ *
+ * The host provides four things through `H`, because each beacon already has
+ * its own spelling of them and neither should have to change:
+ *   H.key   the workspace tracking key
+ *   H.base  the /api/track base, first-party where the workspace has one
+ *   H.id()  the durable visitor id
+ *   H.sid() the session id - the join the whole timeline hangs off
+ *   H.send(url, body) a keepalive POST that survives the page unloading
+ *
+ * Everything below is unchanged from where it was first written, including the
+ * reasoning. Start the observer with `MM_OBSERVER(H)`, and hand anything it
+ * throws to `MM_OBSERVER_FAILED(H, err)` rather than to an empty catch.
+ */
+function MM_OBSERVER(H) {
+  // Checked up front, so a host that forgot one fails HERE with a sentence,
+  // not three frames down as "cannot read properties of undefined". The lead
+  // beacon once passed a variable that did not exist at the call site; the
+  // ReferenceError was caught by an empty catch and the monitor never started
+  // on any lead site, with nothing anywhere to say so.
+  if (!H || typeof H !== 'object') throw new Error('the tag monitor was started without its host settings');
+  if (!H.key) throw new Error('no tracking key on the page, so there is nowhere to send what the monitor sees');
+  if (!H.base) throw new Error('no address to send tag events to');
+  if (typeof H.id !== 'function' || typeof H.sid !== 'function' || typeof H.send !== 'function') {
+    throw new Error('the tag monitor host is missing id, sid or send');
+  }
+  /* ── The tag observer ──────────────────────────────────────────────────────
+   *
+   * WHY THIS LIVES HERE AND NOT IN GTM.
+   *
+   * A monitor loaded through GTM cannot see GTM being the thing that broke -
+   * it is the smoke alarm wired to the candle. This script is already served
+   * first-party from the tenant's own domain on a random path, so it survives
+   * the ad-blockers, consent tools and bad container publishes that take the
+   * tags themselves out. That is the whole reason to observe from here.
+   *
+   * WHAT IT RECORDS, AND WHAT IT REFUSES TO.
+   *
+   * Vendor, event name, outcome, latency, the order id the tag was carrying,
+   * and the consent state at that instant. Never the request body. We answer
+   * "did your Meta pixel report this order, and was it allowed to?" - not
+   * "what was in it", which is the tenant's data and their vendor's business.
+   *
+   * HOW THE OUTCOME IS KNOWN. Cross-origin resource timing gives us little:
+   * `responseStatus` where the browser offers it, otherwise a transferSize of
+   * zero with no duration is the signature of a request that never left. So
+   * the vocabulary is deliberately coarse - fired / blocked / no_response -
+   * and never claims an HTTP status the browser did not give us.
+   */
+  var VENDORS = [
+    // host fragment            vendor        how the event is named on the wire
+    ['facebook.com/tr',         'meta',       function (u) { return u.searchParams.get('ev'); }],
+    ['/g/collect',              'ga4',        function (u) { return u.searchParams.get('en'); }],
+    ['google-analytics.com/collect', 'ga4',   function (u) { return u.searchParams.get('t'); }],
+    // A GOOGLE ADS HIT IS NOT A CONVERSION JUST BECAUSE GOOGLE ADS SENT IT.
+    //
+    // Both of these were labelled 'conversion', and the remarketing tag fires
+    // on every page a visitor opens - so 46 of the first 46 fires recorded on a
+    // live store were product, login and search pages calling themselves
+    // conversions. The reconciliation falls back to matching on the session, so
+    // every order would have matched one of them and Google Ads coverage would
+    // have read 100% whether the conversion tag ever fired or not.
+    //
+    // The path is what separates them: /pagead/viewthroughconversion/ is
+    // remarketing, /pagead/conversion/ is the conversion tag.
+    ['googleads.g.doubleclick.net', 'google_ads', function (u) {
+      return /viewthroughconversion/i.test(u.pathname) ? 'remarketing' : 'conversion';
+    }],
+    ['googleadservices.com/pagead/conversion', 'google_ads', function () { return 'conversion'; }],
+    ['analytics.tiktok.com',    'tiktok',     function (u) { return u.searchParams.get('event'); }],
+    ['px.ads.linkedin.com',     'linkedin',   function () { return 'conversion'; }],
+    ['ct.pinterest.com',        'pinterest',  function (u) { return u.searchParams.get('event'); }],
+    ['bat.bing.com',            'bing',       function (u) { return u.searchParams.get('ea'); }],
+    ['static.klaviyo.com',      'klaviyo',    function () { return null; }],
+    ['clarity.ms',              'clarity',    function () { return null; }]
+  ];
+  // The order id the tag is carrying, under each vendor's own spelling. This is
+  // the join that makes the reconciliation exact instead of inferred.
+  var TXN_KEYS = ['ep.transaction_id', 'transaction_id', 'cd[order_id]', 'oid', 'ecomm_prodid', 'tid_order'];
+  function txnFrom(u) {
+    for (var i = 0; i < TXN_KEYS.length; i++) {
+      var v = u.searchParams.get(TXN_KEYS[i]);
+      if (v) return String(v).slice(0, 64);
+    }
+    return null;
+  }
+  // Conversion events are watched on EVERY session: a reconciliation
+  // denominator has to be complete or "812 of 1,844" is a guess. Everything
+  // else rides a sample, because tag inventory and drift do not need census.
+  var ALWAYS = /^(purchase|Purchase|CompletePayment|conversion|begin_checkout|InitiateCheckout|add_to_cart|AddToCart)$/;
+  var SAMPLE_RATE = 0.05;
+  var _sampled = null;
+  function inSample() {
+    if (_sampled === null) {
+      try {
+        var k = sessionStorage.getItem('mm_obs');
+        if (k === null) { k = Math.random() < SAMPLE_RATE ? '1' : '0'; sessionStorage.setItem('mm_obs', k); }
+        _sampled = k === '1';
+      } catch (_) { _sampled = false; }
+    }
+    return _sampled;
+  }
+
+  /* Consent, as a state we can date. Read from Google Consent Mode v2 in the
+   * dataLayer, the TCF API, and the GPC header signal - each kept under its own
+   * name, because a tenant arguing with their DPO needs the signal that
+   * actually governed the tag, not our summary of it. */
+  var _consent = { source: 'default', reason: 'default' };
+  function consentVerdict() {
+    if (_consent.gpc) return ['denied', 'gpc'];
+    if (_consent.ad_storage === 'denied' || _consent.analytics_storage === 'denied') return ['denied', 'consent_mode'];
+    if (_consent.ad_storage === 'granted' || _consent.analytics_storage === 'granted') return ['granted', 'consent_mode'];
+    if (_consent.tcf_purpose1 === true) return ['granted', 'tcf'];
+    if (_consent.tcf_gdpr_applies === true && _consent.tcf_purpose1 === false) return ['denied', 'tcf'];
+    return ['unknown', 'none'];
+  }
+  function postConsent(reason) {
+    var body = JSON.stringify({
+      mm_id: H.id(), session_id: H.sid(), page_path: location.pathname,
+      source: _consent.source, reason: reason || _consent.reason,
+      ad_storage: _consent.ad_storage || null, analytics_storage: _consent.analytics_storage || null,
+      ad_user_data: _consent.ad_user_data || null, ad_personalization: _consent.ad_personalization || null,
+      gpc: _consent.gpc === undefined ? null : !!_consent.gpc,
+      tcf_gdpr_applies: _consent.tcf_gdpr_applies === undefined ? null : !!_consent.tcf_gdpr_applies,
+      tcf_purpose1: _consent.tcf_purpose1 === undefined ? null : !!_consent.tcf_purpose1,
+      ts: new Date().toISOString()
+    });
+    H.send(H.base + '/consent/' + encodeURIComponent(H.key), body);
+  }
+  function watchConsent() {
+    try { if (navigator.globalPrivacyControl) { _consent.gpc = true; _consent.source = 'gpc'; } } catch (_) {}
+    // Consent Mode lands in the dataLayer as ['consent','default'|'update',{...}]
+    // and changes mid-session, which is exactly why each transition is its own
+    // record rather than one field that only remembers the last one.
+    var read = function (a) { return false; };
+    try {
+      var dl = window.dataLayer;
+      read = function (a) {
+        if (!a || a[0] !== 'consent' || !a[2]) return false;
+        var c = a[2], changed = false;
+        ['ad_storage', 'analytics_storage', 'ad_user_data', 'ad_personalization'].forEach(function (k) {
+          if (c[k] && c[k] !== _consent[k]) { _consent[k] = c[k]; changed = true; }
+        });
+        if (changed) { _consent.source = 'consent_mode'; postConsent(a[1] || 'update'); }
+        return changed;
+      };
+      if (dl && dl.length) for (var i = 0; i < dl.length; i++) read(dl[i]);
+      if (dl && typeof dl.push === 'function') {
+        var origPush = dl.push;
+        dl.push = function () {
+          try { for (var j = 0; j < arguments.length; j++) read(arguments[j]); } catch (_) {}
+          return origPush.apply(dl, arguments);
+        };
+      }
+    } catch (_) {}
+    try {
+      if (window.__tcfapi) window.__tcfapi('addEventListener', 2, function (d, ok) {
+        if (!ok || !d) return;
+        var before = _consent.tcf_purpose1;
+        _consent.tcf_gdpr_applies = d.gdprApplies;
+        _consent.tcf_purpose1 = !!(d.purpose && d.purpose.consents && d.purpose.consents[1]);
+        if (_consent.tcf_purpose1 !== before) { _consent.source = 'tcf'; postConsent(d.eventStatus || 'tcf'); }
+      });
+    } catch (_) {}
+    // WAIT FOR THE BANNER, AND SAY NOTHING IF THERE ISN'T ONE.
+    //
+    // This used to post immediately, unconditionally. Two things went wrong.
+    // It raced every consent tool that loads after us, so the row it sent
+    // carried four nulls; and on a site with no consent tooling it sent that
+    // same empty row on every page view - 11,577 of them in a month on one
+    // store, against 868 that meant anything. A record of "we looked and found
+    // nothing", repeated per page, is not evidence.
+    //
+    // So we look again once the page has settled, and post only if there is a
+    // verdict to post. The absence is still reported, from the sessions that
+    // carry no consent row at all, which says the same thing once.
+    var settle = function () {
+      try {
+        var dl2 = window.dataLayer;
+        if (dl2 && dl2.length) for (var k = 0; k < dl2.length; k++) read(dl2[k]);
+      } catch (_) {}
+      if (_consent.ad_storage || _consent.analytics_storage || _consent.gpc
+          || _consent.tcf_gdpr_applies || _consent.tcf_purpose1 !== undefined) {
+        postConsent(_consent.source === 'default' ? 'settled' : _consent.source);
+      }
+    };
+    try { setTimeout(settle, 2500); } catch (_) { settle(); }
+  }
+
+  var _seen = {}, _queue = [];
+  function flushFires() {
+    if (!_queue.length) return;
+    var batch = _queue.splice(0, _queue.length);
+    H.send(H.base + '/tags/' + encodeURIComponent(H.key),
+      JSON.stringify({ mm_id: H.id(), session_id: H.sid(), fires: batch }));
+  }
+  function noteFire(url, startMs, durationMs, transferred, responseStatus) {
+    var u; try { u = new URL(url, location.href); } catch (_) { return; }
+    var hit = null;
+    for (var i = 0; i < VENDORS.length; i++) {
+      if ((u.host + u.pathname).indexOf(VENDORS[i][0]) !== -1 || url.indexOf(VENDORS[i][0]) !== -1) { hit = VENDORS[i]; break; }
+    }
+    if (!hit) return;
+    var ev = null; try { ev = hit[2](u); } catch (_) {}
+    var always = ev && ALWAYS.test(ev);
+    if (!always && !inSample()) return;
+    // Dedup within the page: a pixel that retries is one fire, not three.
+    var sig = hit[1] + '|' + (ev || '') + '|' + (txnFrom(u) || '') + '|' + location.pathname;
+    if (_seen[sig]) return;
+    _seen[sig] = 1;
+    var verdict = consentVerdict();
+    var status = 'fired';
+    if (responseStatus && responseStatus >= 400) status = 'error';
+    else if (!transferred && !durationMs) status = 'blocked';
+    _queue.push({
+      ts: new Date().toISOString(),
+      vendor: hit[1], event_name: ev || null, status: status,
+      http_status: responseStatus || null,
+      latency_ms: durationMs ? Math.round(durationMs) : null,
+      txn_id: txnFrom(u),
+      value_minor: u.searchParams.get('ep.value') || u.searchParams.get('cd[value]') || u.searchParams.get('value') || null,
+      currency: u.searchParams.get('ep.currency') || u.searchParams.get('cd[currency]') || u.searchParams.get('currency') || null,
+      consent: verdict[0], consent_src: verdict[1],
+      request_host: u.host, page_path: location.pathname,
+      sampled: !always
+    });
+    if (_queue.length >= 12) flushFires();
+  }
+  function watchTags() {
+    // PerformanceObserver catches everything the page loads however it was
+    // requested - <img> pixels, fetch, XHR, sendBeacon - which is why it is the
+    // primary sensor rather than monkey-patching four APIs and missing a fifth.
+    try {
+      var po = new PerformanceObserver(function (list) {
+        var e = list.getEntries();
+        for (var i = 0; i < e.length; i++) {
+          noteFire(e[i].name, e[i].startTime, e[i].duration, e[i].transferSize, e[i].responseStatus);
+        }
+      });
+      po.observe({ type: 'resource', buffered: true });
+    } catch (_) {}
+    setInterval(flushFires, 5000);
+    addEventListener('pagehide', flushFires);
+    addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushFires(); });
+  }
+  watchConsent();
+  watchTags();
+  try { window.__MM_OBSERVER_STATE__ = { started: true }; } catch (_) {}
+}
+
+/**
+ * A MONITOR THAT CANNOT START MUST SAY SO.
+ *
+ * Both hosts used to wrap MM_OBSERVER in `try {} catch (_) {}`. That is right
+ * about one thing - the monitor must never take the beacon down with it - and
+ * wrong about the other: a monitor that silently never runs is
+ * indistinguishable from a store whose tags never fire. So the failure is
+ * caught, and then told three ways:
+ *
+ *   - the browser console, for whoever is looking at the page
+ *   - window.__MM_OBSERVER_STATE__, for a support check or a test
+ *   - one row back to us (vendor '_observer', status 'error', the message in
+ *     `detail`), once per session, so the dashboard can say "the monitor is
+ *     on but failed to start on 14 pages: <reason>" instead of "no tags yet"
+ *
+ * The report rides the same /tags/ intake as every fire, because a new public
+ * path has to be added to the nginx allowlist for every transport and a
+ * missing one 404s silently - the exact failure this exists to end.
+ */
+function MM_OBSERVER_FAILED(H, err) {
+  var msg = 'unknown error';
+  try { msg = String((err && (err.message || err)) || msg).slice(0, 300); } catch (_) {}
+  try { window.__MM_OBSERVER_STATE__ = { started: false, error: msg }; } catch (_) {}
+  try { if (window.console && console.warn) console.warn('[cookiebees] the tag monitor did not start: ' + msg); } catch (_) {}
+  try {
+    if (!H || !H.key || !H.base || typeof H.send !== 'function') return;
+    try {
+      if (sessionStorage.getItem('mm_obs_err') === msg) return;
+      sessionStorage.setItem('mm_obs_err', msg);
+    } catch (_) {}
+    var id = null, sid = null;
+    try { id = typeof H.id === 'function' ? H.id() : null; } catch (_) {}
+    try { sid = typeof H.sid === 'function' ? H.sid() : null; } catch (_) {}
+    H.send(H.base + '/tags/' + encodeURIComponent(H.key), JSON.stringify({
+      mm_id: id, session_id: sid, fires: [],
+      observer_error: { message: msg, page_path: location.pathname }
+    }));
+  } catch (_) {}
+}
+
+  // A failure to start is caught (the beacon must survive it) and reported
+  // (console, window.__MM_OBSERVER_STATE__, one row per session) rather than
+  // swallowed: a monitor that silently never runs reads as "no tags fired".
+  var OBS_H={key:K,base:T,id:function(){return MM;},sid:sid,
+    send:function(u,b){try{if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'text/plain'}));return;}}catch(e){}
+      try{fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:b});}catch(e){}}};
+  try{MM_OBSERVER(OBS_H);}catch(e){MM_OBSERVER_FAILED(OBS_H,e);}
+
+})();
